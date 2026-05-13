@@ -13,10 +13,9 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler'; // Correct named import
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { NavigationContainer } from '@react-navigation/native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import BottomSheet from '@gorhom/bottom-sheet';
 import io from 'socket.io-client';
 import axios from 'axios';
@@ -69,10 +68,10 @@ function BottomNavigation({ token, user, onNavigate }) {
 
   const navigationItems = [
     { name: 'Home', icon: 'Home' },
-    { name: 'Listings', icon: 'List' },
-    { name: 'Transactions', icon: 'Trans' },
+    { name: 'Listings', icon: 'Listings' },
+    { name: 'Transactions', icon: 'Transactions' },
     { name: 'Profile', icon: 'Profile' },
-    { name: 'Messages', icon: 'Chat' },
+    { name: 'Messages', icon: 'Messages' },
     ...(user.role === 'admin' ? [{ name: 'Admin', icon: 'Admin' }] : []),
   ];
 
@@ -667,55 +666,49 @@ function ProfileScreen({ user, onSignOut }) {
   );
 }
 
-const Tab = createBottomTabNavigator();
-
 export default function App() {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [currentScreen, setCurrentScreen] = useState('Home');
 
-  useEffect(() => {
-    (async () => {
-      const storedToken = await AsyncStorage.getItem('token');
-      const storedUser = await AsyncStorage.getItem('user');
-      if (storedToken && storedUser) {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-      }
-      setLoading(false);
-    })();
-  }, []);
-
-  const handleSignIn = async (newToken, newUser) => {
-    await AsyncStorage.setItem('token', newToken);
-    await AsyncStorage.setItem('user', JSON.stringify(newUser));
+  const handleSignIn = (newToken, newUser) => {
     setToken(newToken);
     setUser(newUser);
+    // This fix handles the Admin redirection issue
+    if (newUser.role === 'admin') {
+      setCurrentScreen('Admin');
+    } else {
+      setCurrentScreen('Home');
+    }
   };
 
-  const handleSignOut = async () => {
-    await AsyncStorage.removeItem('token');
-    await AsyncStorage.removeItem('user');
+  const handleSignOut = () => {
     setToken(null);
     setUser(null);
   };
 
   return (
-    <SafeAreaProvider>
-      {loading ? (
-        <SafeAreaView style={styles.centered}>
-          <ActivityIndicator />
-        </SafeAreaView>
-      ) : !user ? (
-        <AuthScreen onSignIn={handleSignIn} />
-      ) : (
-        <View style={{ flex: 1 }}>
-          <MainContent token={token} user={user} onSignOut={handleSignOut} currentScreen={currentScreen} />
-          <BottomNavigation token={token} user={user} onNavigate={setCurrentScreen} />
-        </View>
-      )}
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        {!token ? (
+          <AuthScreen onSignIn={handleSignIn} />
+        ) : (
+          <View style={{ flex: 1 }}>
+            <MainContent 
+              token={token} 
+              user={user} 
+              onSignOut={handleSignOut} 
+              currentScreen={currentScreen} 
+            />
+            <BottomNavigation 
+              token={token} 
+              user={user} 
+              onNavigate={(screen) => setCurrentScreen(screen)} 
+            />
+          </View>
+        )}
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
