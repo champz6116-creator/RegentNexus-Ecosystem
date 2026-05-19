@@ -1,3 +1,4 @@
+import { useState } from 'react'; // 1. ✅ Added useState import
 import { Link, useLocation } from 'react-router-dom';
 import { Home, ShoppingCart, MessageSquare, Settings, LogOut, Menu, Moon, Sun } from 'lucide-react';
 import { useDarkMode } from '../../hooks/useDarkMode';
@@ -5,7 +6,9 @@ import { useDarkMode } from '../../hooks/useDarkMode';
 export default function Header({ user, onLogout }) {
   const [isDark, setIsDark] = useDarkMode();
   const location = useLocation();
-  const [showMobileMenu, setShowMobileMenu] = true;
+  
+  // 2. ✅ FIXED: Changed '= true' to proper 'useState(false)' state hook
+  const [showMobileMenu, setShowMobileMenu] = useState(false); 
 
   const navItems = [
     { path: '/home', label: 'Home', icon: Home },

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 
 // Auth Components
 import AuthPage from './components/Auth/AuthPage';
@@ -24,14 +24,19 @@ import MessagesPage from './components/Messages/MessagesPage';
 import AdminPage from './components/Admin/AdminPage';
 import HelpCenter from './components/Common/HelpCenter';
 
+// ✅ Fixed Layout: Content passes through AppShell to reach the Outlet slot
 function ProtectedLayout({ user, onSignOut }) {
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white relative flex flex-col w-full">
       <Watermark />
       <Header user={user} onLogout={onSignOut} />
-      <main className="relative z-10">
-        <AppShell user={user} onSignOut={onSignOut} />
-      </main>
+      
+      <AppShell user={user} onSignOut={onSignOut}>
+        <main className="relative z-10 w-full flex-1">
+          <Outlet /> {/* 👈 Crucial! This is where HomePage, ListingsPage, etc. are injected */}
+        </main>
+      </AppShell>
+      
       {user && <FAB />}
     </div>
   );
