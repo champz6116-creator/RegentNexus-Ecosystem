@@ -3,6 +3,7 @@ import axios from 'axios';
 const api = axios.create({
   // Vite specific way to call the environment variable
   baseURL: import.meta.env.VITE_API_URL || 'https://regent-nexus-backend.onrender.com/api',
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },

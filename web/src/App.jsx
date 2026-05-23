@@ -106,7 +106,10 @@ function App() {
         >
           <Route path="/home" element={<HomePage />} />
           <Route path="/listings" element={<ListingsPage />} />
-          <Route path="/listings/:itemId" element={<DetailedScreen />} />
+          
+          {/* ✅ Updated line with user and onUpdateUser inputs */}
+          <Route path="/listings/:itemId" element={<DetailedScreen user={user} onUpdateUser={handleUserUpdate} />} />
+          
           <Route path="/cart" element={<CartPage user={user} />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/profile" element={<ProfilePage user={user} />} />

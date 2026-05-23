@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import StandardTextInput from '../Common/StandardTextInput';
 import api from '../../api';
 
 export default function AuthPage({ onSignIn }) {
@@ -120,31 +121,41 @@ export default function AuthPage({ onSignIn }) {
               <span className="text-sm font-medium text-slate-700">First Name</span>
               <input value={form.firstName} onChange={(e) => setField('firstName', e.target.value)} className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900" placeholder="Rooney" />
             </label>
+            
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Last Name</span>
               <input value={form.lastName} onChange={(e) => setField('lastName', e.target.value)} className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900" placeholder="Uwho Victor" />
             </label>
-            <label className="block">
-              <span className="text-sm font-medium text-slate-700">Gender *</span>
-              <select value={form.gender} onChange={(e) => setField('gender', e.target.value)} className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900">
-                <option value="">Select your gender</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="other">Other</option>
+
+            {/* Mandatory Dropdown field for Gender mapping */}
+            <div className="space-y-1">
+              <label className="text-xs uppercase font-bold text-slate-400 block">Gender Context Matrix</label>
+              <select 
+                value={form.gender} 
+                onChange={e => setField('gender', e.target.value)}
+                className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm focus:outline-none focus:border-slate-900"
+              >
+                <option value="">Select Gender Alignment...</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
               </select>
-            </label>
+            </div>
+
             <label className="block">
               <span className="text-sm font-medium text-slate-700">School ID</span>
               <input value={form.schoolId} onChange={(e) => setField('schoolId', e.target.value)} className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900" placeholder="00500122" />
             </label>
+            
             <label className="block">
               <span className="text-sm font-medium text-slate-700">School Email</span>
               <input value={form.schoolMail} onChange={(e) => setField('schoolMail', e.target.value)} className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900" placeholder="rooney.uwho@regent.edu.gh" />
             </label>
+            
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Phone</span>
               <input value={form.phone} onChange={(e) => setField('phone', e.target.value)} className="mt-2 w-full rounded-3xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-900" placeholder="+233530282249" />
             </label>
+            
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Password</span>
               <div className="relative">
@@ -154,6 +165,7 @@ export default function AuthPage({ onSignIn }) {
                 </button>
               </div>
             </label>
+            
             <label className="block">
               <span className="text-sm font-medium text-slate-700">Confirm Password</span>
               <div className="relative">
@@ -163,6 +175,7 @@ export default function AuthPage({ onSignIn }) {
                 </button>
               </div>
             </label>
+            
             <div className="grid gap-2 sm:grid-cols-3">
               {['email', 'sms', 'admin'].map((option) => (
                 <button
@@ -175,6 +188,7 @@ export default function AuthPage({ onSignIn }) {
                 </button>
               ))}
             </div>
+            
             <button type="button" onClick={handleRegister} disabled={loading} className="w-full rounded-3xl bg-slate-900 px-5 py-3 text-white transition hover:bg-slate-700 disabled:opacity-60">
               {loading ? 'Registering…' : 'Register'}
             </button>
