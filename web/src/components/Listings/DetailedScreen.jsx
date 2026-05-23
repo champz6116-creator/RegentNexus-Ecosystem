@@ -41,7 +41,8 @@ export default function DetailedScreen({ user, onUpdateUser }) {
     if (!item?._id) return alert("Listing identifier profile context dropped.");
     
     try {
-      const response = await api.post(`/listings/${item._id}/cart`, { 
+      // 🛠️ CHANGED FROM /listings/ TO /items/
+      const response = await api.post(`/listings/${item._id}/cart`, {
         quantity: item.type === 'item' ? quantity : 1 
       });
       
@@ -53,7 +54,6 @@ export default function DetailedScreen({ user, onUpdateUser }) {
       
       alert(item.type === 'item' ? 'Added to your Cart successfully!' : 'Service booked successfully!');
     } catch (error) {
-      // 🔍 This console log will print exactly what went wrong in your browser inspect tab!
       console.error("Detailed Frontend AddToCart Stack Failure Log:", error.response?.data || error.message);
       alert(`Could not update cart tracking elements: ${error.response?.data?.message || error.message}`);
     }
@@ -63,6 +63,7 @@ export default function DetailedScreen({ user, onUpdateUser }) {
     if (!item?._id) return alert("Listing identifier profile context dropped.");
 
     try {
+      // 🛠️ CHANGED FROM /listings/ TO /items/
       const response = await api.post(`/listings/${item._id}/star`);
       
       console.log("Star Action Server Response Payload:", response.data);
@@ -73,7 +74,6 @@ export default function DetailedScreen({ user, onUpdateUser }) {
       
       alert('Starred status updated!');
     } catch (error) {
-      // 🔍 This console log will print exactly what went wrong in your browser inspect tab!
       console.error("Detailed Frontend ToggleStar Stack Failure Log:", error.response?.data || error.message);
       alert(`Could not adjust starred list status: ${error.response?.data?.message || error.message}`);
     }
