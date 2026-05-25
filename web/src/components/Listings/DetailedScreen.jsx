@@ -42,7 +42,7 @@ export default function DetailedScreen({ user, onUpdateUser }) {
     
     try {
       // 🛠️ CHANGED FROM /listings/ TO /items/
-      const response = await api.post(`/listings/${item._id}/cart`, {
+      const response = await api.post(`/${item._id}/cart`, {
         quantity: item.type === 'item' ? quantity : 1 
       });
       
@@ -64,7 +64,7 @@ export default function DetailedScreen({ user, onUpdateUser }) {
 
     try {
       // 🛠️ CHANGED FROM /listings/ TO /items/
-      const response = await api.post(`/listings/${item._id}/star`);
+      const response = await api.post(`/${item._id}/star`);
       
       console.log("Star Action Server Response Payload:", response.data);
       
