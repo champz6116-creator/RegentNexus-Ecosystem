@@ -41,13 +41,14 @@ export default function DetailedScreen({ user, onUpdateUser }) {
     if (!item?._id) return alert("Listing identifier profile context dropped.");
     
     try {
-      // 🛠️ CHANGED FROM /listings/ TO /items/
-      const response = await api.post(`/${item._id}/cart`, {
+      // FORCE THE ABSOLUTE RELATIVE PATH STARTING FROM THE ROOT /API
+      const response = await api.post(`/listings/${item._id}/cart`, {
         quantity: item.type === 'item' ? quantity : 1 
       });
       
       console.log("Cart Action Server Response Payload:", response.data);
       
+      // Look for response.data.user because that's what our backend now returns!
       if (onUpdateUser && response.data?.user) {
         onUpdateUser(response.data.user);
       }
@@ -63,11 +64,12 @@ export default function DetailedScreen({ user, onUpdateUser }) {
     if (!item?._id) return alert("Listing identifier profile context dropped.");
 
     try {
-      // 🛠️ CHANGED FROM /listings/ TO /items/
-      const response = await api.post(`/${item._id}/star`);
+      // FORCE THE ABSOLUTE RELATIVE PATH STARTING FROM THE ROOT /API
+      const response = await api.post(`/listings/${item._id}/star`);
       
       console.log("Star Action Server Response Payload:", response.data);
       
+      // Look for response.data.user because that's what our backend now returns!
       if (onUpdateUser && response.data?.user) {
         onUpdateUser(response.data.user);
       }
