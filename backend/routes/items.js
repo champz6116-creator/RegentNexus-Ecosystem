@@ -2,13 +2,12 @@ const express = require('express');
 const mongoose = require('mongoose');
 const Item = require('../models/Item');
 const Report = require('../models/Report');
-const { verifyToken } = require('../middleware/auth'); 
 
 const router = express.Router();
 
 /**
  * GET /api/listings/user/me
- * Dedicated personal workspace filter array. Fixes missing items display.
+ * Workspace filter array. Placed at the top so it doesn't get captured by /:id
  */
 router.get('/user/me', async (req, res) => {
   try {
@@ -72,6 +71,10 @@ router.post('/', async (req, res) => {
   }
 });
 
+/* ==================================================================== */
+/* CRITICAL CORE FIX: ACTIONS MUST BE PLACED BEFORE THE GENERIC REQ :ID */
+/* ==================================================================== */
+
 /**
  * POST /api/listings/:id/star
  * Toggles a user's starred list data index references
@@ -79,7 +82,7 @@ router.post('/', async (req, res) => {
 router.post('/:id/star', async (req, res) => {
   try {
     const itemId = req.params.id;
-    const user = req.user; // Securely extracted via server.js root middleware hydration
+    const user = req.user; // Hydrated securely from the verifyToken gateway in server.js
     
     if (!user) return res.status(404).json({ message: 'User context not found.' });
     if (!user.starredServices) user.starredServices = [];
@@ -109,7 +112,7 @@ router.post('/:id/cart', async (req, res) => {
     const { quantity } = req.body;
     const targetQuantity = Math.max(1, parseInt(quantity) || 1);
     const itemId = req.params.id;
-    const user = req.user; // Securely extracted via server.js root middleware hydration
+    const user = req.user; // Hydrated securely from the verifyToken gateway in server.js
     
     if (!user) return res.status(404).json({ message: 'User context not found.' });
     if (!user.cart) user.cart = [];
@@ -132,7 +135,6 @@ router.post('/:id/cart', async (req, res) => {
 
 /**
  * POST /api/listings/:id/rate
- * Commits interactive review feedback directly onto schema structures
  */
 router.post('/:id/rate', async (req, res) => {
   try {
@@ -156,7 +158,6 @@ router.post('/:id/rate', async (req, res) => {
 
 /**
  * POST /api/listings/:id/report
- * Process community infraction flags onto the target tracker model.
  */
 router.post('/:id/report', async (req, res) => {
   try {
@@ -176,9 +177,12 @@ router.post('/:id/report', async (req, res) => {
   }
 });
 
+/* ==================================================================== */
+/* GENERIC IDENTIFIER PARSERS SIT AT THE ABSOLUTE BOTTOM               */
+/* ==================================================================== */
+
 /**
  * GET /api/listings/:id
- * Dynamic single entry mapping lookup context loader
  */
 router.get('/:id', async (req, res) => {
   try {
@@ -192,7 +196,6 @@ router.get('/:id', async (req, res) => {
 
 /**
  * PUT /api/listings/:id
- * Update specific atomic entry parameters safely.
  */
 router.put('/:id', async (req, res) => {
   try {
@@ -217,7 +220,6 @@ router.put('/:id', async (req, res) => {
 
 /**
  * DELETE /api/listings/:id
- * Safety-focused deletion strategy mapping (soft delete).
  */
 router.delete('/:id', async (req, res) => {
   try {
