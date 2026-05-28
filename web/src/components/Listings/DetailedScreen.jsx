@@ -37,23 +37,27 @@ export default function DetailedScreen({ user, onUpdateUser }) {
     }
   };
 
+    // =========================================================================
+  // BULLETPROOF HANDLERS IN DetailedScreen.jsx
+  // =========================================================================
+
   const handleAddToCart = async () => {
-    if (!item?._id) return alert("Listing identifier profile context dropped.");
+    // Fall back cleanly to itemId if item profile is still hydrating
+    const targetId = item?._id || itemId;
+    if (!targetId) return alert("Listing identifier profile context dropped.");
     
     try {
-      // FORCE THE ABSOLUTE RELATIVE PATH STARTING FROM THE ROOT /API
-      const response = await api.post(`/listings/${item._id}/cart`, {
-        quantity: item.type === 'item' ? quantity : 1 
+      const response = await api.post(`/listings/${targetId}/cart`, {
+        quantity: item?.type === 'item' ? quantity : 1 
       });
       
       console.log("Cart Action Server Response Payload:", response.data);
       
-      // Look for response.data.user because that's what our backend now returns!
       if (onUpdateUser && response.data?.user) {
         onUpdateUser(response.data.user);
       }
       
-      alert(item.type === 'item' ? 'Added to your Cart successfully!' : 'Service booked successfully!');
+      alert(item?.type === 'item' ? 'Added to your Cart successfully!' : 'Service booked successfully!');
     } catch (error) {
       console.error("Detailed Frontend AddToCart Stack Failure Log:", error.response?.data || error.message);
       alert(`Could not update cart tracking elements: ${error.response?.data?.message || error.message}`);
@@ -61,15 +65,15 @@ export default function DetailedScreen({ user, onUpdateUser }) {
   };
 
   const handleToggleStar = async () => {
-    if (!item?._id) return alert("Listing identifier profile context dropped.");
+    // Fall back cleanly to itemId if item profile is still hydrating
+    const targetId = item?._id || itemId;
+    if (!targetId) return alert("Listing identifier profile context dropped.");
 
     try {
-      // FORCE THE ABSOLUTE RELATIVE PATH STARTING FROM THE ROOT /API
-      const response = await api.post(`/listings/${item._id}/star`);
+      const response = await api.post(`/listings/${targetId}/star`);
       
       console.log("Star Action Server Response Payload:", response.data);
       
-      // Look for response.data.user because that's what our backend now returns!
       if (onUpdateUser && response.data?.user) {
         onUpdateUser(response.data.user);
       }
@@ -114,7 +118,7 @@ export default function DetailedScreen({ user, onUpdateUser }) {
           </button>
           
           <button onClick={handleToggleStar} className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition shadow-xs">
-            <Bookmark size={18} className={user?.starredServices?.includes(item._id) ? 'fill-emerald-600 text-emerald-600' : 'text-slate-400'} />
+            <Bookmark size={18} className={(user?.starredServices?.includes(item?._id) || user?.starredServices?.includes(itemId)) ? 'fill-emerald-600 text-emerald-600' : 'text-slate-400'} />
           </button>
         </div>
 
