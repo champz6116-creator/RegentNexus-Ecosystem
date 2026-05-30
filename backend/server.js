@@ -87,3 +87,21 @@ const start = async () => {
 };
 
 start();
+
+// =========================================================================
+// RENDER LIVE ANTI-SLEEP CHRONO SHIELD (Keeps container runtime hot)
+// =========================================================================
+setInterval(() => {
+  const https = require('https');
+  
+  // Adjusted endpoint matching your true mounted router tree path
+  https.get('https://regent-nexus-backend.onrender.com/api/listings', (res) => {
+    if (res.statusCode === 200 || res.statusCode === 401) {
+      console.log('📡 Keep-Alive Handshake: Cloud container runtime successfully kept hot.');
+    } else {
+      console.log(`📡 Keep-Alive Handshake: Ping hit server with status code ${res.statusCode}`);
+    }
+  }).on('error', (e) => {
+    console.error('❌ Anti-sleep ping error payload:', e.message);
+  });
+}, 12 * 60 * 1000); // Fires reliably every 12 minutes to beat Render's 15-minute sleep timer

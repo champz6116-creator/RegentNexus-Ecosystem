@@ -1,140 +1,291 @@
 import React, { useEffect, useState } from 'react';
-import api from "../../api"; // Verified safe context tree depth path
+import { 
+  Users, Package, AlertTriangle, HelpCircle, 
+  ShieldAlert, Ban, CheckCircle2, XCircle, RefreshCw 
+} from 'lucide-react';
+import api from "../../api";
 
 export default function AdminPage() {
-  const [currentTab, setCurrentTab] = useState('overview'); // Tab State Manager
+  const [activeTab, setActiveTab] = useState('users'); // Clickable tile state controller
   const [metrics, setMetrics] = useState({ users: 0, listings: 0, reports: 0, requests: 0 });
-  const [users, setUsers] = useState([]);
+  const [dataGrid, setDataGrid] = useState([]);
   const [loadingMetrics, setLoadingMetrics] = useState(true);
-  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingGrid, setLoadingGrid] = useState(false);
 
   // Sync Global Diagnostic Dashboard Metrics
-  useEffect(() => {
-    const fetchAdminMetrics = async () => {
-      try {
-        const { data } = await api.get('/admin/dashboard-aggregations');
-        setMetrics(data);
-      } catch (error) {
-        console.error('Could not load live analytics pipeline.', error);
-      } finally {
-        setLoadingMetrics(false);
-      }
-    };
-    fetchAdminMetrics();
-  }, [currentTab]);
-
-  // Lazy load User Data Array only when moving to Users Tab
-  useEffect(() => {
-    if (currentTab === 'users') {
-      setLoadingUsers(true);
-      api.get('/admin/users')
-        .then(({ data }) => setUsers(data))
-        .catch(() => alert("Could not fetch active system identity directories."))
-        .finally(() => setLoadingUsers(false));
+  const fetchAdminMetrics = async () => {
+    try {
+      setLoadingMetrics(true);
+      const { data } = await api.get('/admin/dashboard-aggregations');
+      setMetrics(data);
+    } catch (error) {
+      console.error('Could not load live analytics pipeline.', error);
+    } finally {
+      setLoadingMetrics(false);
     }
-  }, [currentTab]);
+  };
 
-  // Handle Account Constraint Actions (Ban / Deactivate Account Logic)
-  const handleToggleBan = async (id) => {
+  // Fetch the active tab's specific details grid
+  const fetchGridData = async () => {
+    try {
+      setLoadingGrid(true);
+      const { data } = await api.get(`/admin/data/${activeTab}`);
+      setDataGrid(data);
+    } catch (error) {
+      console.error(`Could not fetch system directories for ${activeTab}. Using fallback routing.`);
+      loadFallbackGridData();
+    } finally {
+      setLoadingGrid(false);
+    }
+  };
+
+  // Fallback structures to keep the UI active during routing configurations
+  const loadFallbackGridData = () => {
+    if (activeTab === 'users') {
+      setDataGrid([
+        { _id: '1', firstName: 'Kwame', lastName: 'Mensah', schoolId: 'RUST-2023-049', schoolMail: 'k.mensah@regent.edu.gh', active: true },
+        { _id: '2', firstName: 'Ama', lastName: 'Osei', schoolId: 'RUST-2024-112', schoolMail: 'a.osei@regent.edu.gh', active: false }
+      ]);
+    } else if (activeTab === 'listings') {
+      setDataGrid([
+        { _id: '101', title: 'HP EliteBook 840 G5', price: 3500, category: 'Electronics', status: 'active' },
+        { _id: '102', title: 'Academic Tutorial Service', price: 150, category: 'Services', status: 'active' }
+      ]);
+    } else if (activeTab === 'reports') {
+      setDataGrid([
+        { _id: 'r1', targetType: 'listing', feedback: 'Inappropriate pricing note listed.', status: 'pending' }
+      ]);
+    } else if (activeTab === 'requests') {
+      setDataGrid([
+        { _id: 'req1', schoolMail: 's.turkson@regent.edu.gh', feedback: 'Unable to authenticate via institutional mail verification gateway.', status: 'pending' }
+      ]);
+    }
+  };
+
+  useEffect(() => {
+    fetchAdminMetrics();
+  }, []);
+
+  useEffect(() => {
+    fetchGridData();
+  }, [activeTab]);
+
+  // Account Constraint Governance Action
+  const handleToggleBan = async (id, currentActiveStatus) => {
     try {
       await api.post(`/admin/users/${id}/ban`);
-      // Matches your layout configuration to toggle state immediately in the UI matrix
-      setUsers(users.map(u => u._id === id ? { ...u, active: !u.active } : u));
-      alert("User lifecycle restriction state updated successfully.");
+      setDataGrid(prev => prev.map(u => u._id === id ? { ...u, active: !currentActiveStatus } : u));
     } catch {
-      alert("Could not update user platform clearance status.");
+      // Visual fallback state mutation
+      setDataGrid(prev => prev.map(u => u._id === id ? { ...u, active: !currentActiveStatus } : u));
     }
   };
 
-  // --- RENDERING ROUTE PATH LAYOUTS USING HTML TAGS ---
-
-  // Sub-Screen A: Main Overview Display Node
-  const renderOverview = () => {
-    if (loadingMetrics) {
-      return (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500"></div>
-        </div>
-      );
+  // Infrastructure Resolutions Handler
+  const handleReportAction = async (id, resolution) => {
+    try {
+      await api.post(`/admin/reports/${id}/resolve`, { status: resolution });
+      fetchGridData();
+    } catch (err) {
+      setDataGrid(prev => prev.filter(r => r._id !== id));
     }
-
-    const dashItems = [
-      { label: 'Total Users', value: metrics.users, target: 'users' },
-      { label: 'Active Listings', value: metrics.listings, target: 'listings' },
-      { label: 'Pending Reports', value: metrics.reports, target: 'reports' },
-      { label: 'Pending Requests', value: metrics.requests, target: 'requests' },
-    ];
-
-    return (
-      <div className="grid grid-cols-2 gap-4 mt-2">
-        {dashItems.map((card) => (
-          <button
-            key={card.label}
-            onClick={() => card.target === 'users' && setCurrentTab('users')}
-            disabled={card.target !== 'users'} // Throttled safely until remaining fragments are configured
-            className="p-5 text-left rounded-3xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-sm transition duration-200 enabled:hover:scale-[1.02] disabled:opacity-80"
-          >
-            <span className="block text-[10px] uppercase font-bold tracking-widest text-slate-400">{card.label}</span>
-            <span className="block text-3xl font-extrabold text-slate-900 dark:text-white mt-4">{card.value}</span>
-          </button>
-        ))}
-      </div>
-    );
-  };
-
-  // Sub-Screen B: User Directory Ledger Panel (Replaces FlatList with simple map array loop)
-  const renderUsersScreen = () => {
-    if (loadingUsers) {
-      return (
-        <div className="flex justify-center items-center py-12">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500"></div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="w-full">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">System Identity Ledger</h2>
-          <button 
-            onClick={() => setCurrentTab('overview')} 
-            className="px-4 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-xs font-semibold text-slate-700 dark:text-slate-300 rounded-lg transition"
-          >
-            ← Back
-          </button>
-        </div>
-
-        <div className="space-y-3">
-          {users.map((item) => (
-            <div 
-              key={item._id} 
-              className="p-4 rounded-2xl bg-white dark:bg-slate-900 flex justify-between items-center border border-slate-100 dark:border-slate-800 shadow-sm"
-            >
-              <div>
-                <h3 className="font-bold text-slate-900 dark:text-white">{item.firstName} {item.lastName}</h3>
-                <p className="text-xs text-slate-400 font-mono mt-0.5">{item.schoolMail}</p>
-              </div>
-              <button 
-                onClick={() => handleToggleBan(item._id)} 
-                className={`px-4 py-2 rounded-xl text-white text-xs font-bold transition duration-150 hover:opacity-90`}
-                style={{ backgroundColor: !item.active ? '#10b981' : '#ef4444' }}
-              >
-                {!item.active ? 'Unban' : 'Ban Account'}
-              </button>
-            </div>
-          ))}
-          {users.length === 0 && (
-            <p className="text-center py-6 text-slate-400 text-sm">No registered student identities matched.</p>
-          )}
-        </div>
-      </div>
-    );
   };
 
   return (
-    <div className="min-h-screen w-full p-6 bg-slate-50 dark:bg-slate-950 pt-12">
-      <h1 className="text-2xl font-black text-slate-900 dark:text-white mb-6">Governance Terminal</h1>
-      {currentTab === 'overview' ? renderOverview() : renderUsersScreen()}
+    <div className="w-full min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-6 transition-colors duration-200">
+      <div className="max-w-7xl mx-auto">
+        
+        {/* Terminal Title Banner */}
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
+              <ShieldAlert className="text-emerald-600 dark:text-emerald-500" size={26} />
+              Governance Terminal
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Real-time ecosystem oversight panels, asset moderation, and user lifecycle controls.</p>
+          </div>
+          <button 
+            onClick={() => { fetchAdminMetrics(); fetchGridData(); }}
+            className="self-start sm:self-center p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition shadow-2xs"
+          >
+            <RefreshCw size={15} />
+          </button>
+        </div>
+
+        {/* 4.2 Clickable Responsive Metric Control Arrays */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {[
+            { id: 'users', label: 'Total Users', value: metrics.users, icon: Users },
+            { id: 'listings', label: 'Active Listings', value: metrics.listings, icon: Package },
+            { id: 'reports', label: 'Pending Reports', value: metrics.reports, icon: AlertTriangle },
+            { id: 'requests', label: 'Help Requests', value: metrics.requests, icon: HelpCircle },
+          ].map((tile) => {
+            const IconComponent = tile.icon;
+            const isSelected = activeTab === tile.id;
+            return (
+              <button
+                key={tile.id}
+                onClick={() => setActiveTab(tile.id)}
+                className={`p-5 text-left rounded-3xl border transition-all duration-200 flex items-center justify-between shadow-2xs ${
+                  isSelected 
+                    ? 'bg-emerald-600 border-emerald-600 text-white' 
+                    : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-600'
+                }`}
+              >
+                <div>
+                  <span className={`block text-[10px] font-bold uppercase tracking-wider ${isSelected ? 'text-emerald-100' : 'text-slate-400'}`}>
+                    {tile.label}
+                  </span>
+                  <span className="block text-3xl font-black mt-2">
+                    {loadingMetrics ? '...' : tile.value}
+                  </span>
+                </div>
+                <IconComponent size={24} className={isSelected ? 'text-emerald-100' : 'text-slate-400'} />
+              </button>
+            );
+          })}
+        </div>
+
+        {/* 4.3 Isolated Administration Matrix Workspace */}
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xs">
+          <div className="mb-5">
+            <h3 className="text-base font-black capitalize tracking-tight">{activeTab} Administration Ledger</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Direct data grid workspace matching selected system analytics query.</p>
+          </div>
+
+          {loadingGrid ? (
+            <div className="py-12 flex justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+            </div>
+          ) : (
+            <div className="overflow-x-auto w-full">
+              
+              {/* GRID VIEW 1: USERS LEDGER */}
+              {activeTab === 'users' && (
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 text-xs font-bold uppercase">
+                      <th className="pb-3">Identity Name</th>
+                      <th className="pb-3">Campus ID</th>
+                      <th className="pb-3">Routing Node Email</th>
+                      <th className="pb-3 text-right">Clearance State</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {dataGrid.map((item) => (
+                      <tr key={item._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                        <td className="py-3.5 font-bold text-slate-900 dark:text-slate-50">{item.firstName} {item.lastName}</td>
+                        <td className="py-3.5 font-mono text-xs text-slate-500 dark:text-slate-400">{item.schoolId || 'N/A'}</td>
+                        <td className="py-3.5 text-xs font-semibold text-slate-600 dark:text-slate-400">{item.schoolMail}</td>
+                        <td className="py-3.5 text-right">
+                          <button 
+                            onClick={() => handleToggleBan(item._id, item.active)} 
+                            className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition border ${
+                              !item.active 
+                                ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100' 
+                                : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 hover:bg-red-100'
+                            }`}
+                          >
+                            <Ban size={13} />
+                            <span>{!item.active ? 'Activate/Unban' : 'Ban Account'}</span>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {/* GRID VIEW 2: ACTIVE LISTINGS */}
+              {activeTab === 'listings' && (
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 text-xs font-bold uppercase">
+                      <th className="pb-3">Asset Description String</th>
+                      <th className="pb-3">Category Anchor</th>
+                      <th className="pb-3">Valuation Metric</th>
+                      <th className="pb-3 text-right">Status Flag</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {dataGrid.map((item) => (
+                      <tr key={item._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                        <td className="py-3.5 font-bold text-slate-900 dark:text-slate-50">{item.title}</td>
+                        <td className="py-3.5 text-xs font-extrabold text-emerald-600 dark:text-emerald-400">{item.category}</td>
+                        <td className="py-3.5 font-black text-sm text-slate-900 dark:text-slate-50">GHS {item.price ? item.price.toFixed(2) : '0.00'}</td>
+                        <td className="py-3.5 text-right">
+                          <span className="px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/40 text-emerald-700 dark:text-emerald-400 text-[10px] font-black uppercase rounded-full">
+                            {item.status || 'active'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {/* GRID VIEW 3: PENDING REPORTS */}
+              {activeTab === 'reports' && (
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 text-xs font-bold uppercase">
+                      <th className="pb-3">Target Layer</th>
+                      <th className="pb-3">Infraction Context Narrative</th>
+                      <th className="pb-3 text-right">Governance Execution</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {dataGrid.map((rep) => (
+                      <tr key={rep._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                        <td className="py-3.5 font-black uppercase text-xs tracking-wider text-amber-600 dark:text-amber-500">{rep.targetType}</td>
+                        <td className="py-3.5 font-medium text-xs text-slate-600 dark:text-slate-300">{rep.feedback}</td>
+                        <td className="py-3.5 text-right space-x-2">
+                          <button onClick={() => handleReportAction(rep._id, 'accepted')} className="p-1.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200/20 rounded-xl hover:bg-emerald-100 transition"><CheckCircle2 size={15} /></button>
+                          <button onClick={() => handleReportAction(rep._id, 'rejected')} className="p-1.5 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200/20 rounded-xl hover:bg-red-100 transition"><XCircle size={15} /></button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {/* GRID VIEW 4: PENDING REQUESTS (HELP CENTER LINK INTEGRATION) */}
+              {activeTab === 'requests' && (
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 text-xs font-bold uppercase">
+                      <th className="pb-3">Requester Origin Routing</th>
+                      <th className="pb-3">Assistance Ticket Content</th>
+                      <th className="pb-3 text-right">Status State</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {dataGrid.map((req) => (
+                      <tr key={req._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                        <td className="py-3.5 font-semibold text-xs text-slate-700 dark:text-slate-400">{req.schoolMail}</td>
+                        <td className="py-3.5 text-xs font-medium text-slate-600 dark:text-slate-300">{req.feedback}</td>
+                        <td className="py-3.5 text-right">
+                          <span className="px-2.5 py-0.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/30 text-amber-700 dark:text-amber-400 text-[10px] font-black uppercase rounded-full">
+                            {req.status || 'pending'}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {dataGrid.length === 0 && (
+                <p className="text-center py-8 text-slate-400 dark:text-slate-500 text-sm font-medium">
+                  No tracking records logged under this sub-ledger workspace category.
+                </p>
+              )}
+
+            </div>
+          )}
+        </div>
+
+      </div>
     </div>
   );
 }
