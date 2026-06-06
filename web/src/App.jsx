@@ -23,8 +23,8 @@ import SettingsPage from './components/Settings/SettingsPage';
 import MessagesPage from './components/Messages/MessagesPage';
 import AdminPage from './components/Admin/AdminPage';
 import HelpCenter from './components/Common/HelpCenter';
+import PeerProfileView from './components/Profile/PeerProfileView';
 
-// ✅ Fixed Layout: Content passes through AppShell to reach the Outlet slot
 function ProtectedLayout({ user, onSignOut }) {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white relative flex flex-col w-full">
@@ -33,7 +33,7 @@ function ProtectedLayout({ user, onSignOut }) {
       
       <AppShell user={user} onSignOut={onSignOut}>
         <main className="relative z-10 w-full flex-1">
-          <Outlet /> {/* 👈 Crucial! This is where HomePage, ListingsPage, etc. are injected */}
+          <Outlet />
         </main>
       </AppShell>
       
@@ -45,6 +45,7 @@ function ProtectedLayout({ user, onSignOut }) {
 function App() {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
+  const [loadingAuth, setLoadingAuth] = useState(true);
 
   useEffect(() => {
     const storedToken = localStorage.getItem('token');
@@ -52,14 +53,14 @@ function App() {
     if (storedToken && storedUser) {
       try {
         setToken(storedToken);
-        const userData = JSON.parse(storedUser);
-        setUser(userData);
+        setUser(JSON.parse(storedUser));
       } catch (error) {
-        console.error('Failed to parse user data', error);
+        console.error('Failed to parse user session data:', error);
         localStorage.removeItem('token');
         localStorage.removeItem('user');
       }
     }
+    setLoadingAuth(false);
   }, []);
 
   const handleSignIn = (newToken, newUser) => {
@@ -82,6 +83,14 @@ function App() {
     localStorage.setItem('user', JSON.stringify(updatedUser));
     setUser(updatedUser);
   };
+
+  if (loadingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 text-slate-400 text-xs font-bold uppercase tracking-widest">
+        Loading RegentNexus Ecosystem...
+      </div>
+    );
+  }
 
   return (
     <BrowserRouter>
@@ -106,20 +115,23 @@ function App() {
         >
           <Route path="/home" element={<HomePage />} />
           <Route path="/listings" element={<ListingsPage />} />
-          
-          {/* ✅ Updated line with user and onUpdateUser inputs */}
           <Route path="/listings/:itemId" element={<DetailedScreen user={user} onUpdateUser={handleUserUpdate} />} />
-          
           <Route path="/cart" element={<CartPage user={user} />} />
           <Route path="/transactions" element={<TransactionsPage />} />
-          <Route path="/profile" element={<ProfilePage user={user} />} />
-          <Route
-            path="/settings"
-            element={<SettingsPage user={user} onUpdate={handleUserUpdate} />}
-          />
-          <Route path="/messages" element={<MessagesPage />} />
+          
+          {/* Linked updates directly to global state */}
+          <Route path="/profile" element={<ProfilePage user={user} onUpdateUser={handleUserUpdate} />} />
+          <Route path="/settings" element={<SettingsPage user={user} onUpdate={handleUserUpdate} />} />
+          
+          <Route path="/messages" element={<MessagesPage user={user} />} />
           <Route path="/help" element={<HelpCenter />} />
-          {user?.role === 'admin' && <Route path="/admin" element={<AdminPage />} />}
+          <Route path="/peer/:userId" element={<PeerProfileView currentAccount={user} />} />
+          
+          {/* Secure Workspace Route Protection Boundary */}
+          <Route 
+            path="/admin" 
+            element={user?.role === 'admin' ? <AdminPage /> : <Navigate to="/home" replace />} 
+          />
         </Route>
 
         {/* Catch-all */}

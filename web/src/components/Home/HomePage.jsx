@@ -18,7 +18,8 @@ export default function HomePage() {
       setListings(data);
     } catch (error) {
       console.error('Failed to load listings', error);
-    } finally {
+    } 
+    finally {
       setLoading(false);
     }
   };
@@ -38,9 +39,8 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-900">
-      {/* Command Center */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        {/* View Toggle */}
+        {/* Category Toggles */}
         <div className="flex gap-3 mb-6">
           <button
             onClick={() => {
@@ -70,7 +70,7 @@ export default function HomePage() {
           </button>
         </div>
 
-        {/* Search Bar */}
+        {/* Marketplace Search */}
         <form onSubmit={handleSearch} className="mb-8">
           <div className="relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
@@ -89,17 +89,17 @@ export default function HomePage() {
           </div>
         </form>
 
-        {/* Results Info */}
+        {/* Counter Info */}
         <div className="mb-6">
           <p className="text-sm text-slate-600 dark:text-slate-400">
             Showing {filtered.length} {view === 'items' ? 'items' : 'services'}
           </p>
         </div>
 
-        {/* Grid */}
+        {/* Data Display Grids */}
         {loading ? (
           <div className="text-center py-12">
-            <p className="text-slate-500 dark:text-slate-400">Loading {view}…</p>
+            <p className="text-slate-500 dark:text-slate-400">Loading {view}...</p>
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-12">
@@ -149,12 +149,12 @@ export default function HomePage() {
                   <img
                     src={service.imageUrl}
                     alt={service.title}
-                    className="w-40 h-32 object-cover"
+                    className="w-40 h-32 object-cover shrink-0"
                   />
                 )}
-                <div className="flex-1 p-4 flex flex-col justify-between">
+                <div className="flex-1 p-4 flex flex-col justify-between min-w-0">
                   <div>
-                    <h3 className="font-semibold text-slate-900 dark:text-white">
+                    <h3 className="font-semibold text-slate-900 dark:text-white truncate">
                       {service.title}
                     </h3>
                     <p className="text-sm text-slate-600 dark:text-slate-400">
