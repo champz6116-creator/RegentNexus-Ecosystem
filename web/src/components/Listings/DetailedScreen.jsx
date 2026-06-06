@@ -164,7 +164,18 @@ export default function DetailedScreen({ user, onUpdateUser }) {
                 </a>
                 
                 <button 
-                  onClick={() => navigate(`/messages?recipientId=${item.owner?._id}&itemName=${encodeURIComponent(item.title)}`)} 
+                  onClick={() => {
+                  // 1. Resolve the data using your fallback cascade
+                  const sellerId = item.owner?._id || item.recipientId || item.sender;
+                  const itemTitle = item.title || item.itemName || 'Marketplace Item';
+                  const fName = item.owner?.firstName || 'Campus';
+                  const lName = item.owner?.lastName || 'Member';
+
+                  // 2. Navigate with the resolved data
+                  navigate(
+                    `/messages?recipientId=${sellerId}&itemName=${encodeURIComponent(itemTitle)}&sellerName=${encodeURIComponent(fName + ' ' + lName)}`
+                  );
+                }}
                   className="p-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition shadow-xs flex items-center justify-center" 
                   title="Message Provider"
                 >
