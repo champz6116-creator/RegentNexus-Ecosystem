@@ -8,6 +8,7 @@ const http = require('http');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const socketio = require('socket.io');
+const path = require('path'); // 🌟 ADDED: For serving static assets
 const authRoutes = require('./routes/auth');
 const itemRoutes = require('./routes/items');
 const userRoutes = require('./routes/users');
@@ -23,17 +24,11 @@ const io = socketio(server, { cors: { origin: '*', methods: ['GET', 'POST'] } })
 
 global.io = io;
 
-// Dynamically pull allowed origins from environment properties, fallback cleanly on local
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  process.env.FRONTEND_URL // 🌟 Ensure this points to your live frontend url (e.g., https://regentnexus.netlify.app)
-].filter(Boolean);
-
+// 🌟 FIX FOR STEP 1: Relaxed CORS array for easy production pairing
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow server-to-server requests or matching system origins cleanly
-    if (!origin || allowedOrigins.includes(origin)) {
+    // Allows server-to-server requests or any campus domain variant seamlessly
+    if (!origin || origin.includes('localhost') || origin.includes('onrender.com')) {
       callback(null, true);
     } else {
       callback(new Error('Access denied by security policy. Origin not allowed: ' + origin));
@@ -54,15 +49,25 @@ app.use((req, res, next) => {
   next();
 });
 
+// API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', verifyToken, userRoutes);
 app.use('/api/listings', verifyToken, itemRoutes);
 app.use('/api/reports', verifyToken, reportRoutes);
 app.use('/api/admin', verifyToken, adminRoutes);
 app.use('/api/transactions', verifyToken, transactionRoutes);
-
-// ✅ MOUNTED PIPELINE: Attach message endpoints behind validation guards
 app.use('/api/messages', messageRoutes);
+
+// =========================================================================
+// 🌟 FIX FOR STEP 2: MOUNT FRONTEND STATIC ASSET ROUTING
+// =========================================================================
+// Serves your built assets from your build folder
+app.use(express.static(path.join(__dirname, '../web/dist')));
+
+// The universal catch-all fallback route: sends unknown traffic to index.html
+app.get('*', (req, res) => {
+  res.sendFile(path.resolve(__dirname, '../web', 'dist', 'index.html'));
+});
 
 io.on('connection', (socket) => {
   console.log('socket connected', socket.id);
@@ -72,14 +77,13 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => console.log('socket disconnected', socket.id));
 });
 
-// 2. Place this where your "start" function or connection logic is
+// Start function logic
 const start = async () => {
     try {
-        // Force the connection to use IPv4 and give it more time to find the Primary
         await mongoose.connect(process.env.MONGO_URI, {
             family: 4, 
-            serverSelectionTimeoutMS: 30000, // Increased to 30s for slow local networks
-            heartbeatFrequencyMS: 10000     // Checks connection every 10s
+            serverSelectionTimeoutMS: 30000, 
+            heartbeatFrequencyMS: 10000     
         });
         console.log('✅ Mongo connected successfully');
         
@@ -100,7 +104,6 @@ start();
 setInterval(() => {
   const https = require('https');
   
-  // Adjusted endpoint matching your true mounted router tree path
   https.get('https://regent-nexus-backend.onrender.com/api/listings', (res) => {
     if (res.statusCode === 200 || res.statusCode === 401) {
       console.log('📡 Keep-Alive Handshake: Cloud container runtime successfully kept hot.');
@@ -110,4 +113,4 @@ setInterval(() => {
   }).on('error', (e) => {
     console.error('❌ Anti-sleep ping error payload:', e.message);
   });
-}, 12 * 60 * 1000); // Fires reliably every 12 minutes to beat Render's 15-minute sleep timer
+}, 12 * 60 * 1000);
