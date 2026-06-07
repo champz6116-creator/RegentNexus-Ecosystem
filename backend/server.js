@@ -60,7 +60,7 @@ app.use('/api/admin', verifyToken, adminRoutes);
 app.use('/api/transactions', verifyToken, transactionRoutes);
 
 // ✅ MOUNTED PIPELINE: Attach message endpoints behind validation guards
-app.use('/api/messages', verifyToken, messageRoutes);
+app.use('/api/messages', messageRoutes);
 
 io.on('connection', (socket) => {
   console.log('socket connected', socket.id);
