@@ -178,4 +178,22 @@ router.delete('/users/:id', verifyToken, requireRole('admin'), async (req, res) 
   }
 });
 
+/**
+ * RESTORED ROUTE: GET /admin/dashboard
+ * Feeds the frontend admin panel with the expected metric variables.
+ */
+router.get('/dashboard', verifyToken, requireRole('admin'), async (req, res) => {
+  try {
+    const userCount = await User.countDocuments();
+    const listingCount = await Item.countDocuments();
+    const pendingReports = await Report.countDocuments({ status: 'pending' });
+    const transactionCount = await Transaction.countDocuments();
+    const logs = await ActivityLog.find().sort({ createdAt: -1 }).limit(20);
+
+    res.json({ userCount, listingCount, pendingReports, transactionCount, logs });
+  } catch (err) {
+    res.status(500).json({ message: 'Dashboard metrics failed to load.' });
+  }
+});
+
 module.exports = router;
