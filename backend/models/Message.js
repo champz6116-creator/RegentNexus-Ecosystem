@@ -3,17 +3,30 @@ const mongoose = require('mongoose');
 const MessageSchema = new mongoose.Schema({
   sender: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User', // Ensure this matches your User model export name exactly
-    required: true
+    ref: 'User', 
+    required: function() { return !this.isSystemAction; } // Optional only if system generated
   },
   recipient: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: function() { return !this.isSystemAction; } // Optional only if system generated
   },
   contextItem: {
     type: String,
     default: 'General Exchange'
+  },
+  itemId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Item',
+    default: null
+  },
+  isSystemAction: {
+    type: Boolean,
+    default: false
+  },
+  isReportNotice: {
+    type: Boolean,
+    default: false
   },
   text: {
     type: String,

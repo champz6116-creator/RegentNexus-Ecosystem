@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Send, User, MessageSquare, Inbox, ArrowLeft, ShieldAlert } from 'lucide-react';
+import { Send, User, MessageSquare, Inbox, ArrowLeft, ShieldAlert, AlertTriangle } from 'lucide-react';
+import io from 'socket.io-client';
 import api from '../../api';
 
 export default function MessagesPage({ user }) {
@@ -11,6 +12,7 @@ export default function MessagesPage({ user }) {
   const recipientId = searchParams.get('recipientId') || searchParams.get('chatWith');
   const itemName = searchParams.get('itemName');
   const rawSellerName = searchParams.get('sellerName');
+  const itemId = searchParams.get('itemId'); // 🌟 Context item ID tracking extraction
 
   // --- Core State Management Layers ---
   const [conversations, setConversations] = useState([]);
@@ -19,6 +21,7 @@ export default function MessagesPage({ user }) {
   const [newMessage, setNewMessage] = useState('');
   const [loadingChats, setLoadingChats] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [socket, setSocket] = useState(null);
 
   // Responsive state sync
   const [mobileShowChat, setMobileShowChat] = useState(!!recipientId);
@@ -31,6 +34,63 @@ export default function MessagesPage({ user }) {
   useEffect(() => {
     if (messages.length > 0) scrollToBottom();
   }, [messages]);
+
+  // --- 🌟 SETUP REAL-TIME SOCKET CONNECTION ---
+  useEffect(() => {
+    const backendUrl = api.defaults.baseURL || window.location.origin;
+    const socketInstance = io(backendUrl);
+    setSocket(socketInstance);
+
+    // Dynamic stream listener
+    socketInstance.on('receive_message', (msg) => {
+      setMessages((prev) => {
+        // Prevent duplicate updates if state has processed it
+        if (prev.some((m) => m._id === msg._id)) return prev;
+        return [...prev, msg];
+      });
+    });
+
+    return () => {
+      socketInstance.disconnect();
+    };
+  }, []);
+
+  // --- 🌟 WHATSAPP DATE & TIME FORMATTERS ---
+  const formatTime = (dateStr) => {
+    if (!dateStr) return 'Sent';
+    return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const formatDateLabel = (dateStr) => {
+    if (!dateStr) return 'TODAY';
+    const d = new Date(dateStr);
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) return 'TODAY';
+    
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return 'YESTERDAY';
+
+    return d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+  };
+
+  // --- 🌟 DISPATCH REQUIREMENT C: USER REPORT ---
+  const handleReportUser = async () => {
+    if (!activeChat) return;
+    const reason = window.prompt("Please enter the reason for flagging this interaction context:");
+    if (reason === null) return; // User cancelled
+
+    try {
+      await api.post('/messages/report', {
+        reportedUserId: activeChat.participant?._id,
+        itemId: activeChat.itemId || itemId,
+        reason: reason.trim() || 'Flagged via chat interface interface.'
+      });
+      alert('Conversation flagged cleanly for safety evaluation.');
+    } catch (err) {
+      console.error('Failed to submit moderation report logs:', err);
+    }
+  };
 
   // --- Hook 1: Core Inbox Sync Pipeline ---
   useEffect(() => {
@@ -50,7 +110,6 @@ export default function MessagesPage({ user }) {
         setConversations([]);
       } finally {
         if (recipientId) {
-          // Look for an existing negotiation path matching the targeted student
           const matchingChat = backendChats.find(
             c => c.participant?._id === recipientId || c.participant?.id === recipientId
           );
@@ -58,9 +117,7 @@ export default function MessagesPage({ user }) {
           if (matchingChat) {
             setActiveChat(matchingChat);
           } else {
-            // Build an active workspace context layer placeholder for uninitiated sessions
             const nameParts = parsedSellerName.split(' ');
-            // Use a more robust check to ensure you aren't defaulting to "Campus" too easily
             const fName = nameParts[0] !== 'undefined' ? nameParts[0] : 'User';
             const lName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
             const contextItemValue = itemName ? decodeURIComponent(itemName) : '';
@@ -68,18 +125,17 @@ export default function MessagesPage({ user }) {
             setActiveChat({
               _id: 'new_channel_context',
               participant: { _id: recipientId, firstName: fName, lastName: lName },
-              contextItem: contextItemValue || 'Marketplace Item'
+              contextItem: contextItemValue || 'Marketplace Item',
+              itemId: itemId || null
             });
             setMessages([]);
 
-            // Auto-populate context greeting frame cleanly if it hasn't been edited
             if (contextItemValue) {
               setNewMessage(`Hi, I'm interested in your listed item: "${contextItemValue}". Is it still available?`);
             }
           }
           setMobileShowChat(true);
         } else if (backendChats.length > 0 && !activeChat) {
-          // Only auto-select the first channel if there isn't an active layout already targeted
           setActiveChat(backendChats[0]);
         }
         setLoadingChats(false);
@@ -87,8 +143,7 @@ export default function MessagesPage({ user }) {
     };
 
     fetchInboxChannels();
-    // 💡 REMOVED activeChat from dependencies to kill infinite state cycles
-  }, [recipientId, itemName, rawSellerName]);
+  }, [recipientId, itemName, rawSellerName, itemId]);
 
   // --- Hook 2: Direct Feed Message Log Updates ---
   useEffect(() => {
@@ -103,33 +158,35 @@ export default function MessagesPage({ user }) {
       } catch (err) {
         console.error('Failed to load historic channel transmission logs:', err);
       } finally {
-        setLoadingMessages(false);
+        loadingMessages && setLoadingMessages(false);
       }
     };
 
     fetchMessageLogs();
-  }, [activeChat?._id]); // 💡 Safely tie dependency to primitive ID changes only
+  }, [activeChat?._id]);
+
+  // Check if active channel item context contains deactivated notices
+  const isChannelLocked = messages.some(m => m.isSystemAction && m.text.includes('no longer active'));
 
   // --- Dispatch Transmission Handlers ---
   const handleSendMessage = async (e) => {
     if (e) e.preventDefault();
-    if (!newMessage.trim() || !activeChat) return;
+    if (!newMessage.trim() || !activeChat || isChannelLocked) return;
 
     const currentTypedString = newMessage.trim();
 
     try {
       if (activeChat._id === 'new_channel_context') {
-        // 1. Initializing for the first time
         const payload = {
           recipientId: activeChat.participant._id,
           text: currentTypedString,
-          contextItem: activeChat.contextItem
+          contextItem: activeChat.contextItem,
+          itemId: activeChat.itemId
         };
 
         const { data } = await api.post('/messages/initialize', payload);
         setNewMessage('');
         
-        // Robust ID Extraction (from Version 1)
         const finalizedChatId = data?.message?.conversationId || data?.conversation?._id || data?.chatId || activeChat.participant._id;
         
         const structuralActiveChat = {
@@ -137,20 +194,18 @@ export default function MessagesPage({ user }) {
           _id: finalizedChatId
         };
 
-        // 2. State Sync (STOPS HERE—No second API call)
         setActiveChat(structuralActiveChat);
         setConversations(prev => [structuralActiveChat, ...prev.filter(c => c._id !== 'new_channel_context')]);
         
-        // Safely map the returned message payload
         const incomingMsg = data?.message && typeof data.message === 'object' ? data.message : data;
         setMessages([incomingMsg]);
 
       } else {
-        // Ordinary message flow for established channels
         const { data } = await api.post(`/messages/channel/${activeChat._id}/send`, {
           text: currentTypedString,
           recipientId: activeChat.participant._id,
-          contextItem: activeChat.contextItem
+          contextItem: activeChat.contextItem,
+          itemId: activeChat.itemId || itemId
         });
 
         const injectedMsg = data?.message || data;
@@ -164,7 +219,6 @@ export default function MessagesPage({ user }) {
 
   const handleCloseChatViewOnMobile = () => {
     setMobileShowChat(false);
-    // Remove query search contexts without causing full component reboots
     setSearchParams({}, { replace: true });
   };
 
@@ -226,61 +280,97 @@ export default function MessagesPage({ user }) {
         <section className={`flex-1 flex flex-col bg-white dark:bg-slate-900 justify-between ${mobileShowChat ? 'flex' : 'hidden md:flex'}`}>
           {activeChat ? (
             <>
-              {/* Header Profile Info Meta Bar */}
-              <header className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center gap-3 bg-slate-50/30 dark:bg-slate-950/10">
-                <button
-                  onClick={handleCloseChatViewOnMobile}
-                  className="md:hidden p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 rounded-xl"
-                >
-                  <ArrowLeft size={16} />
-                </button>
-
-                <div className="flex-1 min-w-0">
-                  <h3 
-                    className="font-black text-sm text-slate-900 dark:text-slate-50 hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline cursor-pointer transition truncate inline-block"
-                    onClick={() => navigate(`/peer/${activeChat.participant?._id || activeChat.participant?.id}`)}
+              {/* Header Profile Info Meta Bar (With Requirement C Report Button) */}
+              <header className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/30 dark:bg-slate-950/10">
+                <div className="flex items-center gap-3 min-w-0">
+                  <button
+                    onClick={handleCloseChatViewOnMobile}
+                    className="md:hidden p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 rounded-xl"
                   >
-                    {activeChat.participant?.firstName} {activeChat.participant?.lastName}
-                  </h3>
-                  <span className="text-[10px] font-bold text-slate-400 block mt-0.5 truncate">
-                    Regarding: <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">{activeChat.contextItem || 'General Exchange'}</span>
-                  </span>
+                    <ArrowLeft size={16} />
+                  </button>
+
+                  <div className="min-w-0">
+                    <h3 
+                      className="font-black text-sm text-slate-900 dark:text-slate-50 hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline cursor-pointer transition truncate inline-block"
+                      onClick={() => navigate(`/peer/${activeChat.participant?._id || activeChat.participant?.id}`)}
+                    >
+                      {activeChat.participant?.firstName} {activeChat.participant?.lastName}
+                    </h3>
+                    <span className="text-[10px] font-bold text-slate-400 block mt-0.5 truncate">
+                      Regarding: <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">{activeChat.contextItem || 'General Exchange'}</span>
+                    </span>
+                  </div>
                 </div>
+
+                {/* 🚨 Requirement C: Global Standard Report Utility Element */}
+                <button 
+                  onClick={handleReportUser}
+                  className="flex flex-col items-center justify-center p-2 text-rose-500 hover:text-rose-600 dark:text-rose-400/90 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/20 transition shrink-0"
+                  title="Report Abuse"
+                >
+                  <AlertTriangle size={18} />
+                  <span className="text-[9px] font-black tracking-wider uppercase mt-0.5">Report</span>
+                </button>
               </header>
 
               {/* Message History Feed Container */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/20 dark:bg-slate-950/5">
-                {loadingMessages ? (
-                  <div className="text-center text-[10px] uppercase font-bold text-slate-400 py-6 tracking-wider">Syncing message histories...</div>
-                ) : messages.length === 0 ? (
-                  <div className="text-center text-xs py-8 text-slate-400 font-medium max-w-xs mx-auto">
-                    Say hello! Initiate negotiations cleanly regarding safe campus drop-off zones or item trading adjustments.
+                
+                {/* 💼 Requirement A Contextual Tag Display Bubble at Center Top */}
+                {activeChat.contextItem && (
+                  <div className="flex justify-center my-2">
+                    <span className="bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full shadow-xs border border-amber-200/40">
+                      🏷️ Inquired Reference: {activeChat.contextItem}
+                    </span>
                   </div>
-                ) : (
-                  messages.map((msg, idx) => {
-                    const msgSenderId = msg.senderId || msg.sender;
-                    
-                    // Fixed logical boundary structure evaluation: prevents false owner assignments
-                    const isMe = msgSenderId === 'me' || 
-                      (user?._id && msgSenderId === user._id) || 
-                      (msgSenderId && msgSenderId !== activeChat.participant?._id);
+                )}
 
-                    return (
-                      <div key={msg._id || idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[75%] sm:max-w-[70%] rounded-2xl p-3 text-xs font-semibold shadow-2xs leading-relaxed ${
-                          isMe
-                            ? 'bg-slate-900 text-white rounded-br-none dark:bg-slate-100 dark:text-slate-900'
-                            : 'bg-white text-slate-800 border border-slate-150 dark:bg-slate-800 dark:text-slate-50 dark:border-slate-700/60 rounded-bl-none'
-                        }`}>
-                          <p className="break-words whitespace-pre-wrap">{msg.text}</p>
-                          <span className={`block text-[8px] mt-1 text-right font-medium ${isMe ? 'text-slate-400 dark:text-slate-500' : 'text-slate-400'}`}>
-                            {msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Sent'}
+                {messages.map((msg, idx) => {
+                  const msgSenderId = msg.senderId || msg.sender;
+                  const isMe = msgSenderId === 'me' || (user?._id && msgSenderId === user._id);
+                  
+                  // Evaluate continuous date change separators (WhatsApp Logic)
+                  const showDateLabel = idx === 0 || formatDateLabel(messages[idx - 1].timestamp || messages[idx - 1].createdAt) !== formatDateLabel(msg.timestamp || msg.createdAt);
+
+                  return (
+                    <React.Fragment key={msg._id || idx}>
+                      {showDateLabel && (
+                        <div className="flex justify-center my-3">
+                          <span className="bg-slate-200/80 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-md shadow-xs">
+                            {formatDateLabel(msg.timestamp || msg.createdAt)}
                           </span>
                         </div>
-                      </div>
-                    );
-                  })
-                )}
+                      )}
+
+                      {/* Display System Warning Alert Bubble vs Standalone Message Styles */}
+                      {msg.isSystemAction ? (
+                        <div className="flex justify-center my-2">
+                          <div className={`max-w-[85%] rounded-xl px-4 py-2 text-xs font-bold text-center border ${
+                            msg.isReportNotice 
+                              ? 'bg-rose-50 text-rose-700 border-rose-100 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30' 
+                              : 'bg-emerald-50 text-emerald-800 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30'
+                          }`}>
+                            {msg.text}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[75%] sm:max-w-[70%] rounded-2xl p-3 text-xs font-semibold shadow-2xs leading-relaxed ${
+                            isMe
+                              ? 'bg-slate-900 text-white rounded-br-none dark:bg-slate-100 dark:text-slate-900'
+                              : 'bg-white text-slate-800 border border-slate-150 dark:bg-slate-800 dark:text-slate-50 dark:border-slate-700/60 rounded-bl-none'
+                          }`}>
+                            <p className="break-words whitespace-pre-wrap">{msg.text}</p>
+                            <span className={`block text-[8px] mt-1 text-right font-medium ${isMe ? 'text-slate-400 dark:text-slate-500' : 'text-slate-400'}`}>
+                              {formatTime(msg.timestamp || msg.createdAt)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
                 <div ref={messagesEndRef} />
               </div>
 
@@ -290,10 +380,15 @@ export default function MessagesPage({ user }) {
                   type="text"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder="Type your transaction message here safety parameters..."
-                  className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-xs font-bold text-slate-900 dark:text-slate-50 placeholder-slate-400 outline-none focus:border-emerald-500 transition-colors"
+                  disabled={isChannelLocked}
+                  placeholder={isChannelLocked ? "This listing channel is closed — Deactivated" : "Type your transaction message here safety parameters..."}
+                  className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-xs font-bold text-slate-900 dark:text-slate-50 placeholder-slate-400 outline-none focus:border-emerald-500 transition-colors disabled:opacity-50"
                 />
-                <button type="submit" className="p-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition flex items-center justify-center shrink-0 shadow-2xs">
+                <button 
+                  type="submit" 
+                  disabled={isChannelLocked}
+                  className="p-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition flex items-center justify-center shrink-0 shadow-2xs disabled:bg-slate-400 dark:disabled:bg-slate-700"
+                >
                   <Send size={15} />
                 </button>
               </form>

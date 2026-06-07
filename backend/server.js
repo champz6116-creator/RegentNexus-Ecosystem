@@ -21,6 +21,8 @@ const app = express();
 const server = http.createServer(app);
 const io = socketio(server, { cors: { origin: '*', methods: ['GET', 'POST'] } });
 
+global.io = io;
+
 // Dynamically pull allowed origins from environment properties, fallback cleanly on local
 const allowedOrigins = [
   'http://localhost:5173',

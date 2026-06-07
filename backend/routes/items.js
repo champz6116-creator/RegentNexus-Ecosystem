@@ -220,6 +220,7 @@ router.put('/:id', async (req, res) => {
 
 /**
  * DELETE /api/listings/:id
+ * Soft-deletes campus records and notifies conversation channels
  */
 router.delete('/:id', async (req, res) => {
   try {
@@ -231,6 +232,28 @@ router.delete('/:id', async (req, res) => {
 
     item.status = 'removed';
     await item.save();
+
+    // Generate automated system broadcast link inside message tables
+    const systemNotice = await Message.create({
+      text: `📢 This listing ("${item.title}") is no longer active. Transactions are locked.`,
+      contextItem: item.title,
+      itemId: item._id,
+      isSystemAction: true,
+      timestamp: new Date()
+    });
+
+    if (global.io) {
+      global.io.emit('receive_message', {
+        _id: systemNotice._id.toString(),
+        text: systemNotice.text,
+        sender: 'system',
+        contextItem: systemNotice.contextItem,
+        itemId: systemNotice.itemId,
+        isSystemAction: true,
+        timestamp: systemNotice.timestamp
+      });
+    }
+
     return res.status(204).send();
   } catch (err) {
     return res.status(500).json({ message: err.message });
