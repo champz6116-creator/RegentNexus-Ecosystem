@@ -129,13 +129,13 @@ export default function AuthPage({ onSignIn }) {
 
             {/* Mandatory Dropdown field for Gender mapping */}
             <div className="space-y-1">
-              <label className="text-xs uppercase font-bold text-slate-400 block">Gender Context Matrix</label>
+              <label className="text-xs uppercase font-bold text-slate-400 block">Gender</label>
               <select 
                 value={form.gender} 
                 onChange={e => setField('gender', e.target.value)}
                 className="w-full px-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm focus:outline-none focus:border-slate-900"
               >
-                <option value="">Select Gender Alignment...</option>
+                <option value="">Select Gender...</option>
                 <option value="Male">Male</option>
                 <option value="Female">Female</option>
               </select>

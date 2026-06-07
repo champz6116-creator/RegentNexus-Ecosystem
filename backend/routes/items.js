@@ -19,6 +19,19 @@ router.get('/user/me', async (req, res) => {
 });
 
 /**
+ * GET /api/listings/:id
+ */
+router.get('/:id', async (req, res) => {
+  try {
+    const item = await Item.findById(req.params.id).populate('owner', 'firstName lastName schoolMail phone schoolId');
+    if (!item) return res.status(404).json({ message: 'Requested item does not exist.' });
+    return res.json(item);
+  } catch (err) {
+    return res.status(500).json({ message: 'Internal Server Error matching endpoint metadata.' });
+  }
+});
+
+/**
  * GET /api/listings
  * System catalog discovery node stream
  */
@@ -180,19 +193,6 @@ router.post('/:id/report', async (req, res) => {
 /* ==================================================================== */
 /* GENERIC IDENTIFIER PARSERS SIT AT THE ABSOLUTE BOTTOM               */
 /* ==================================================================== */
-
-/**
- * GET /api/listings/:id
- */
-router.get('/:id', async (req, res) => {
-  try {
-    const item = await Item.findById(req.params.id).populate('owner', 'firstName lastName schoolMail phone schoolId');
-    if (!item) return res.status(404).json({ message: 'Requested item does not exist.' });
-    return res.json(item);
-  } catch (err) {
-    return res.status(500).json({ message: 'Internal Server Error matching endpoint metadata.' });
-  }
-});
 
 /**
  * PUT /api/listings/:id

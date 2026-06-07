@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Phone, Save, Edit2, X, CheckCircle, AlertCircle, Shield } from 'lucide-react';
 import api from '../../api';
 
-export default function ProfilePage({ user: initialUser }) {
+export default function ProfilePage({ user: initialUser, onUpdateUser }) {
   const [user, setUser] = useState(initialUser || {});
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
@@ -13,6 +13,19 @@ export default function ProfilePage({ user: initialUser }) {
   });
   const [status, setStatus] = useState({ type: '', message: '' });
   const [loading, setLoading] = useState(false);
+
+  // Sync profile data dynamically if parent application state shifts underneath it
+  useEffect(() => {
+    if (initialUser) {
+      setUser(initialUser);
+      setFormData({
+        firstName: initialUser.firstName || '',
+        lastName: initialUser.lastName || '',
+        phone: initialUser.phone || '',
+        gender: initialUser.gender || ''
+      });
+    }
+  }, [initialUser]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -37,21 +50,27 @@ export default function ProfilePage({ user: initialUser }) {
     try {
       const { data } = await api.put('/users/profile/update', formData);
       
-      // Update local state with returned sanitized user profile fields
-      setUser(prev => ({
-        ...prev,
+      const freshlyUpdatedUser = {
+        ...user,
         firstName: data.user.firstName,
         lastName: data.user.lastName,
         phone: data.user.phone,
         gender: data.user.gender
-      }));
+      };
+
+      setUser(freshlyUpdatedUser);
       
-      setStatus({ type: 'success', message: data.message });
+      // Update global context across header and active navigation sidebars
+      if (typeof onUpdateUser === 'function') {
+        onUpdateUser(freshlyUpdatedUser);
+      }
+      
+      setStatus({ type: 'success', message: data.message || 'Profile details saved successfully.' });
       setIsEditing(false);
     } catch (err) {
       setStatus({ 
         type: 'error', 
-        message: err.response?.data?.message || 'Field compilation update transmission failed.' 
+        message: err.response?.data?.message || 'Failed to sync your profile updates with the server.' 
       });
     } finally {
       setLoading(false);
@@ -60,12 +79,10 @@ export default function ProfilePage({ user: initialUser }) {
 
   return (
     <section className="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-xs border border-slate-100 dark:border-slate-800 text-slate-900 dark:text-slate-100 transition-colors duration-200">
-      
-      {/* Header Panel Layout */}
       <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4 mb-5">
         <div>
           <h2 className="text-2xl font-black tracking-tight">Campus Profile</h2>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Manage your RegentNexus account parameters safely.</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Manage your personal RegentNexus identity and marketplace security keys safely.</p>
         </div>
         
         {!isEditing && (
@@ -79,7 +96,6 @@ export default function ProfilePage({ user: initialUser }) {
         )}
       </div>
 
-      {/* Action Notification Strip */}
       {status.message && (
         <div className={`mb-5 p-4 rounded-2xl flex items-center space-x-2 text-sm font-bold border ${
           status.type === 'success' 
@@ -92,7 +108,6 @@ export default function ProfilePage({ user: initialUser }) {
       )}
 
       {isEditing ? (
-        /* DYNAMIC FORM LAYER */
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -129,7 +144,7 @@ export default function ProfilePage({ user: initialUser }) {
           </div>
 
           <div>
-            <label className="block text-xs font-extrabold uppercase text-slate-400 dark:text-slate-500 mb-1">Gender Identification</label>
+            <label className="block text-xs font-extrabold uppercase text-slate-400 dark:text-slate-500 mb-1">Gender</label>
             <select 
               name="gender" value={formData.gender} onChange={handleChange} required
               className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 px-3 py-2.5 outline-none text-sm font-bold text-slate-900 dark:text-slate-50 focus:border-emerald-500"
@@ -140,7 +155,6 @@ export default function ProfilePage({ user: initialUser }) {
             </select>
           </div>
 
-          {/* Form Action Panel Control Buttons */}
           <div className="flex items-center justify-end space-x-2 pt-2">
             <button
               type="button" onClick={handleCancel} disabled={loading}
@@ -159,15 +173,14 @@ export default function ProfilePage({ user: initialUser }) {
           </div>
         </form>
       ) : (
-        /* READ-ONLY DISPLAY GRID LAYOUT (Maintains your structure but fixes dark mode) */
         <div className="grid gap-4 sm:grid-cols-2">
           {[
             ['Full Name', `${user.firstName || ''} ${user.lastName || ''}`],
-            ['School ID', user.schoolId || 'N/A'],
-            ['Institutional Email', user.schoolMail || 'N/A'],
-            ['Phone Number', user.phone || 'N/A'],
-            ['Gender Block', user.gender || 'Not specified'],
-            ['Network Ecosystem Role', user.role || 'student'],
+            ['Student ID Number', user.schoolId || 'Unavailable'],
+            ['Institutional Email', user.schoolMail || 'Unavailable'],
+            ['Phone Number', user.phone || 'Unavailable'],
+            ['Gender Designation', user.gender || 'Not specified'],
+            ['Account System Role', user.role || 'Student'],
           ].map(([label, value]) => (
             <article key={label} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-4">
               <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500">{label}</p>
@@ -179,7 +192,7 @@ export default function ProfilePage({ user: initialUser }) {
             <div>
               <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500">Security Verification Check</p>
               <p className="mt-1.5 text-sm font-bold text-slate-900 dark:text-slate-50">
-                {user.verified ? 'Active Campus Credential Verified Node' : 'Verification Under Review'}
+                {user.verified ? 'Active Campus Credential Verified Identity' : 'Account Under Verification Review'}
               </p>
             </div>
             <Shield className={user.verified ? 'text-emerald-500' : 'text-amber-500'} size={22} />

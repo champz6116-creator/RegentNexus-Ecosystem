@@ -75,7 +75,7 @@ router.get('/users', verifyToken, requireRole('admin'), async (req, res) => {
 router.post('/reports/:id/accept', verifyToken, requireRole('admin'), async (req, res) => {
   try {
     const report = await Report.findByIdAndUpdate(req.params.id, { status: 'accepted' }, { new: true });
-    if (!report) return res.status(404).json({ message: 'Report matching ledger reference identifier missing.' });
+    if (!report) return res.status(404).json({ message: "We couldn't find that report."});
     
     await ActivityLog.create({ user: req.userId, action: 'accept-report', details: `Accepted report ${report._id}` });
     return res.json({ message: 'Report accepted and processed successfully.' });
@@ -107,7 +107,7 @@ router.post('/reports/:id/reject', verifyToken, requireRole('admin'), async (req
 router.post('/users/:id/verify', verifyToken, requireRole('admin'), async (req, res) => {
   try {
     const user = await User.findByIdAndUpdate(req.params.id, { verified: true }, { new: true }).select('-password -verificationCode');
-    if (!user) return res.status(404).json({ message: 'User profile node missing.' });
+    if (!user) return res.status(404).json({ message: "We couldn't find this student's profile."});
     
     await ActivityLog.create({ user: req.userId, action: 'verify-user', details: `Verified user ${user._id}` });
     return res.json(user);
@@ -153,7 +153,7 @@ router.post('/users/:id/ban', verifyToken, requireRole('admin'), async (req, res
 router.post('/listings/:id/remove', verifyToken, requireRole('admin'), async (req, res) => {
   try {
     const listing = await Item.findByIdAndUpdate(req.params.id, { status: 'removed' }, { new: true });
-    if (!listing) return res.status(404).json({ message: 'Listing matching endpoint index missing.' });
+    if (!listing) return res.status(404).json({ message: 'This listing is no longer available.' });
     
     await ActivityLog.create({ user: req.userId, action: 'remove-listing', details: `Removed listing ${listing._id}` });
     return res.json(listing);
@@ -172,9 +172,9 @@ router.delete('/users/:id', verifyToken, requireRole('admin'), async (req, res) 
     if (!user) return res.status(404).json({ message: 'Target identity profile node not found.' });
 
     await ActivityLog.create({ user: req.userId, action: 'purge-user', details: `Permanently purged user account index ${req.params.id}` });
-    return res.json({ message: 'Identity vector purged from main platform ledger nodes cleanly.' });
+    return res.json({ message: 'The account has been completely removed.' });
   } catch (err) {
-    return res.status(500).json({ message: 'Purge request aborted due to database infrastructure error.' });
+    return res.status(500).json({ message: 'Something went wrong on our end. Please try again.' });
   }
 });
 

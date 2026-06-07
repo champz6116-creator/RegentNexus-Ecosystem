@@ -73,16 +73,16 @@ const verifyOTP = (identifier, otp) => {
   const stored = otpStore.get(identifier);
   
   if (!stored) {
-    return { valid: false, message: 'OTP not found' };
+    return { valid: false, message: 'Verification code not found.' };
   }
 
   if (Date.now() > stored.expiryTime) {
     otpStore.delete(identifier);
-    return { valid: false, message: 'OTP expired' };
+    return { valid: false, message: 'Your verification code has expired. Please request a new one.' };
   }
 
   if (stored.otp !== otp) {
-    return { valid: false, message: 'Invalid OTP' };
+    return { valid: false, message: 'Incorrect verification code. Please try again.' };
   }
 
   otpStore.delete(identifier);

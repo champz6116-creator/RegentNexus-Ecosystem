@@ -5,25 +5,24 @@ import api from '../../api';
 
 export default function ListingsPage() {
   const [listings, setListings] = useState([]);
-  const [form, setForm] = useState({ title: '', description: '', category: '', type: 'item', note: '', price: '' });
+  const [form, setForm] = useState({ title: '', description: '', category: '', type: 'item', note: '', price: '', quantity: '1' });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
 
-  // Editing UI Layer States
+  // Editing Workspaces
   const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({ title: '', price: '', description: '', category: '', type: 'item', note: '' });
+  const [editForm, setEditForm] = useState({ title: '', price: '', description: '', category: '', type: 'item', note: '', quantity: 1 });
 
-  // 🌟 FIX: Pull exclusively from the secure personal workspace node router
   const fetchListings = async () => {
     setLoading(true);
     try {
       const { data } = await api.get('/listings/user/me');
       setListings(data);
     } catch (error) {
-      console.error('Fetch listings failed', error);
-      setMessage('Could not sync personal workspace database streams.');
+      console.error('Fetch listings failed:', error);
+      setMessage('Could not load your listings.');
     } finally {
       setLoading(false);
     }
@@ -46,11 +45,11 @@ export default function ListingsPage() {
     setMessage('');
 
     if (!form.title || !form.description || !form.price || !form.category) {
-      setMessage('Title, Description, Category, and Price parameters are completely required.');
+      setMessage('Please fill in the Title, Price, Category, and Description.');
       return;
     }
     if (form.type === 'item' && !imageFile) {
-      setMessage('Ecosystem Guidelines Enforced: Item Listings must include an image upload payload.');
+      setMessage('Please add an image for your item.');
       return;
     }
 
@@ -64,31 +63,32 @@ export default function ListingsPage() {
       await api.post('/listings', {
         ...form,
         price: Number(form.price) || 0,
+        quantity: form.type === 'item' ? (Number(form.quantity) || 1) : 1,
         imageUrl: finalImageUrl
       });
 
-      setMessage('Listing published onto active network registry node successfully.');
-      setForm({ title: '', description: '', category: '', type: 'item', note: '', price: '' });
+      setMessage('Listing published successfully!');
+      setForm({ title: '', description: '', category: '', type: 'item', note: '', price: '', quantity: '1' });
       setImageFile(null);
       setImagePreview('');
       fetchListings();
     } catch (err) {
-      setMessage(err.response?.data?.message || 'Transaction submission error encountered.');
+      setMessage(err.response?.data?.message || 'Failed to submit your listing.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleRemove = async (id) => {
-    if (!window.confirm('Are you sure you want to drop this listing node?')) return;
+    if (!window.confirm('Are you sure you want to remove this listing?')) return;
     setLoading(true);
     try {
       await api.delete(`/listings/${id}`);
-      setMessage('Listing removed.');
+      setMessage('Listing removed successfully.');
       if (editingId === id) setEditingId(null);
       fetchListings();
     } catch (error) {
-      setMessage(error.response?.data?.message || 'Unable to remove listing');
+      setMessage(error.response?.data?.message || 'Unable to remove listing.');
     } finally {
       setLoading(false);
     }
@@ -102,7 +102,8 @@ export default function ListingsPage() {
       description: item.description || '',
       category: item.category || '',
       type: item.type || 'item',
-      note: item.note || ''
+      note: item.note || '',
+      quantity: item.quantity || 1
     });
   };
 
@@ -112,13 +113,14 @@ export default function ListingsPage() {
     try {
       await api.put(`/listings/${editingId}`, {
         ...editForm,
-        price: Number(editForm.price) || 0
+        price: Number(editForm.price) || 0,
+        quantity: editForm.type === 'item' ? (Number(editForm.quantity) || 1) : 1
       });
-      setMessage('Listing configuration state modified successfully.');
+      setMessage('Listing updated successfully.');
       setEditingId(null);
       fetchListings();
     } catch (error) {
-      setMessage(error.response?.data?.message || 'Mutation tracking update handshake rejected.');
+      setMessage(error.response?.data?.message || 'Failed to save changes.');
     } finally {
       setLoading(false);
     }
@@ -128,7 +130,7 @@ export default function ListingsPage() {
     <article className="space-y-6 max-w-2xl mx-auto p-4 text-slate-900 dark:text-slate-100 transition-colors duration-200">
       
       {/* Creation Pane */}
-      <section className="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-xs border border-slate-100 dark:border-slate-800">
+      <section className="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm border border-slate-100 dark:border-slate-800">
         <div className="flex items-center space-x-2 mb-6">
           <Sparkles className="text-emerald-600 dark:text-emerald-400" size={22} />
           <h2 className="text-2xl font-black tracking-tight">Create Marketplace Listing</h2>
@@ -152,7 +154,7 @@ export default function ListingsPage() {
 
           {form.type === 'item' && (
             <div className="space-y-2">
-              <span className="text-xs uppercase font-extrabold tracking-widest text-slate-400 dark:text-slate-500">Product Photography (Mandatory)</span>
+              <span className="text-xs uppercase font-extrabold tracking-widest text-slate-400 dark:text-slate-500">Product Image (Required)</span>
               <div className="relative border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-3xl p-6 text-center hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition flex flex-col items-center justify-center min-h-[160px]">
                 {imagePreview ? (
                   <div className="relative w-full max-h-[200px] overflow-hidden rounded-2xl">
@@ -164,7 +166,7 @@ export default function ListingsPage() {
                 ) : (
                   <label className="cursor-pointer flex flex-col items-center gap-2">
                     <Upload size={32} className="text-slate-400 dark:text-slate-500" />
-                    <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Select product imagery payload file</span>
+                    <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Click to upload product image</span>
                     <input type="file" accept="image/*" onChange={handleFileChange} className="sr-only" />
                   </label>
                 )}
@@ -175,7 +177,7 @@ export default function ListingsPage() {
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="text-xs uppercase font-extrabold text-slate-400 dark:text-slate-500 block mb-1">Listing Title</label>
-              <input type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100 text-sm font-semibold" placeholder="MacBook, Tutoring service..." />
+              <input type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100 text-sm font-semibold" placeholder="MacBook, Tutoring, etc..." />
             </div>
             <div>
               <label className="text-xs uppercase font-extrabold text-slate-400 dark:text-slate-500 block mb-1">Price (GHS)</label>
@@ -183,41 +185,54 @@ export default function ListingsPage() {
             </div>
           </div>
 
-          <div>
-            <label className="text-xs uppercase font-extrabold text-slate-400 dark:text-slate-500 block mb-1">Category Domain</label>
-            <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100 text-sm font-semibold">
-              <option value="">Choose category block...</option>
-              <option value="electronics">Electronics</option>
-              <option value="academics">Academic Assistance</option>
-              <option value="housing">Hostel & Housing</option>
-              <option value="food">Food & Catering</option>
-            </select>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="text-xs uppercase font-extrabold text-slate-400 dark:text-slate-500 block mb-1">Category</label>
+              <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100 text-sm font-semibold">
+                <option value="">Select a category...</option>
+                <option value="electronics">Electronics</option>
+                <option value="academics">Academic Assistance</option>
+                <option value="housing">Hostel & Housing</option>
+                <option value="food">Food & Catering</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs uppercase font-extrabold text-slate-400 dark:text-slate-500 block mb-1">Available Quantity</label>
+              <input 
+                type="number" 
+                disabled={form.type === 'service'} 
+                value={form.type === 'service' ? 1 : form.quantity} 
+                onChange={e => setForm({...form, quantity: e.target.value})} 
+                className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100 text-sm font-semibold disabled:opacity-40" 
+                min="1" 
+              />
+            </div>
           </div>
 
           <div>
-            <label className="text-xs uppercase font-extrabold text-slate-400 dark:text-slate-500 block mb-1">Detailed Operational Description</label>
-            <textarea rows={3} value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100 text-sm font-semibold resize-none" placeholder="Provide system descriptors..." />
+            <label className="text-xs uppercase font-extrabold text-slate-400 dark:text-slate-500 block mb-1">Description</label>
+            <textarea rows={3} value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100 text-sm font-semibold resize-none" placeholder="Provide details about what you are listing..." />
           </div>
 
           <div>
-            <label className="text-xs uppercase font-extrabold text-slate-400 dark:text-slate-500 block mb-1">Brief Reference Note (Optional)</label>
+            <label className="text-xs uppercase font-extrabold text-slate-400 dark:text-slate-500 block mb-1">Fulfillment Note (Optional)</label>
             <input type="text" value={form.note} onChange={e => setForm({...form, note: e.target.value})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100 text-sm font-semibold" placeholder="e.g., Pick up at library courtyard before 4 PM" />
           </div>
 
-          <button type="submit" disabled={loading} className="w-full py-4 rounded-2xl bg-slate-950 dark:bg-emerald-600 hover:bg-slate-900 dark:hover:bg-emerald-500 text-white font-bold transition text-sm disabled:opacity-50 shadow-xs">
-            {loading ? 'Processing & Broadcasting Assets...' : 'Publish Workspace Listing'}
+          <button type="submit" disabled={loading} className="w-full py-4 rounded-2xl bg-slate-950 dark:bg-emerald-600 hover:bg-slate-900 dark:hover:bg-emerald-500 text-white font-bold transition text-sm disabled:opacity-50 shadow-sm">
+            {loading ? 'Publishing...' : 'Publish Listing'}
           </button>
         </form>
       </section>
 
       {/* Management Workspace Area */}
-      <section className="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-xs border border-slate-100 dark:border-slate-800">
+      <section className="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm border border-slate-100 dark:border-slate-800">
         <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100 mb-5">My Store Workspace</h2>
         <div className="space-y-4">
           {listings.length === 0 ? (
             <div className="text-center py-8 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800/50 p-4">
               <Package size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">No active registry nodes found for your profile.</p>
+              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">You haven't posted any listings yet.</p>
             </div>
           ) : (
             listings.map((item) => (
@@ -241,6 +256,25 @@ export default function ListingsPage() {
                         placeholder="Update Price"
                       />
                     </div>
+                    
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <select value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value})} className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100">
+                        <option value="electronics">Electronics</option>
+                        <option value="academics">Academic Assistance</option>
+                        <option value="housing">Hostel & Housing</option>
+                        <option value="food">Food & Catering</option>
+                      </select>
+                      <input 
+                        type="number" 
+                        disabled={editForm.type === 'service'} 
+                        value={editForm.type === 'service' ? 1 : editForm.quantity} 
+                        onChange={e => setEditForm({...editForm, quantity: e.target.value})} 
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100 disabled:opacity-40"
+                        placeholder="Update Stock Quantity"
+                        min="1"
+                      />
+                    </div>
+
                     <textarea 
                       rows={2}
                       value={editForm.description} 
@@ -275,24 +309,24 @@ export default function ListingsPage() {
                         <div>
                           <h3 className="text-base font-black text-slate-900 dark:text-slate-100">{item.title}</h3>
                           <p className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mt-0.5">
-                            {item.type} • {item.category}
+                            {item.type} • {item.category} {item.type === 'item' && `• ${item.quantity || 1} left`}
                           </p>
                         </div>
                       </div>
 
-                      {/* Side-by-Side Control Actions Module */}
+                      {/* Control Actions Module */}
                       <div className="flex items-center space-x-2 self-end sm:self-center">
                         <button 
                           onClick={() => startEdit(item)}
-                          className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-900 dark:hover:border-slate-100 hover:text-slate-900 dark:hover:text-white transition flex items-center justify-center shadow-xs"
-                          title="Modify Listing parameters"
+                          className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-900 dark:hover:border-slate-100 hover:text-slate-900 dark:hover:text-white transition flex items-center justify-center shadow-sm"
+                          title="Edit Listing"
                         >
                           <Edit2 size={14} />
                         </button>
                         <button 
                           onClick={() => handleRemove(item._id)} 
-                          className="p-2.5 bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/40 rounded-xl border border-rose-100 dark:border-rose-900/30 transition flex items-center justify-center shadow-xs"
-                          title="Drop Listing node"
+                          className="p-2.5 bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-950/40 rounded-xl border border-rose-100 dark:border-rose-900/30 transition flex items-center justify-center shadow-sm"
+                          title="Delete Listing"
                         >
                           <Trash2 size={14} />
                         </button>

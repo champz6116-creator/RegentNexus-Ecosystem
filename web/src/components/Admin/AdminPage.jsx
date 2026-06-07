@@ -100,9 +100,9 @@ export default function AdminPage() {
           <div>
             <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
               <ShieldAlert className="text-emerald-600 dark:text-emerald-500" size={26} />
-              Governance Terminal
+              Admin Control Panel
             </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Real-time ecosystem oversight panels, asset moderation, and user lifecycle controls.</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Manage university users, monitor campus listings, and resolve reported issues.</p>
           </div>
           <button 
             onClick={() => { fetchAdminMetrics(); fetchGridData(); }}
@@ -150,7 +150,7 @@ export default function AdminPage() {
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xs">
           <div className="mb-5">
             <h3 className="text-base font-black capitalize tracking-tight">{activeTab} Administration Ledger</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Direct data grid workspace matching selected system analytics query.</p>
+            <p className="text-xs text-slate-400 mt-0.5">Viewing active entries for the selected category.</p>
           </div>
 
           {loadingGrid ? (
@@ -165,9 +165,9 @@ export default function AdminPage() {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 text-xs font-bold uppercase">
-                      <th className="pb-3">Identity Name</th>
+                      <th className="pb-3">Full Name</th>
                       <th className="pb-3">Campus ID</th>
-                      <th className="pb-3">Routing Node Email</th>
+                      <th className="pb-3">Student Email</th>
                       <th className="pb-3 text-right">Clearance State</th>
                     </tr>
                   </thead>
@@ -201,7 +201,7 @@ export default function AdminPage() {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 text-xs font-bold uppercase">
-                      <th className="pb-3">Asset Description String</th>
+                      <th className="pb-3">Item Description</th>
                       <th className="pb-3">Category Anchor</th>
                       <th className="pb-3">Valuation Metric</th>
                       <th className="pb-3 text-right">Status Flag</th>
@@ -230,7 +230,7 @@ export default function AdminPage() {
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 text-xs font-bold uppercase">
                       <th className="pb-3">Target Layer</th>
-                      <th className="pb-3">Infraction Context Narrative</th>
+                      <th className="pb-3">Report Details</th>
                       <th className="pb-3 text-right">Governance Execution</th>
                     </tr>
                   </thead>
@@ -254,7 +254,7 @@ export default function AdminPage() {
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 text-xs font-bold uppercase">
-                      <th className="pb-3">Requester Origin Routing</th>
+                      <th className="pb-3">Sender Email</th>
                       <th className="pb-3">Assistance Ticket Content</th>
                       <th className="pb-3 text-right">Status State</th>
                     </tr>

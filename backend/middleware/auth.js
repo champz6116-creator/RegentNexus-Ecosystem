@@ -8,7 +8,7 @@ const User = require('../models/User');
 async function verifyToken(req, res, next) {
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) {
-    return res.status(401).json({ message: 'Authentication verification frame dropped: Token Missing.' });
+    return res.status(401).json({ message: 'Please log in to continue.' });
   }
 
   try {
@@ -17,7 +17,7 @@ async function verifyToken(req, res, next) {
     // Core Upgrade: Hydrate the complete profile payload while filtering sensitive hashes
     req.user = await User.findById(decoded.id).select('-password');
     if (!req.user) {
-      return res.status(404).json({ message: 'Identity profile missing from active environment nodes.' });
+      return res.status(404).json({ message: 'User account not found.' });
     }
 
     // Backwards-Compatibility Safety Net: Preserve current standard key bindings
@@ -26,7 +26,7 @@ async function verifyToken(req, res, next) {
     
     next();
   } catch (err) {
-    return res.status(403).json({ message: 'Security payload compromised: Token Invalid.' });
+    return res.status(403).json({ message: 'Your session has expired. Please log in again.' });
   }
 }
 
@@ -43,12 +43,12 @@ function requireRole(role) {
     if (Array.isArray(role)) {
       if (!role.includes(activeRole)) {
         return res.status(403).json({ 
-          message: `Access Blocked: High-level [${role.join('/')}] clearance constraints mandatory.` 
+          message: `You don't have permission to view this page.` 
         });
       }
     } else if (activeRole !== role) {
       return res.status(403).json({ 
-        message: `Access Blocked: High-level [${role}] clearance constraints mandatory.` 
+        message: `You don't have permission to view this page.` 
       });
     }
     

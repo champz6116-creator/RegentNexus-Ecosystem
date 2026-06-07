@@ -119,6 +119,7 @@ export default function MessagesPage({ user }) {
 
     try {
       if (activeChat._id === 'new_channel_context') {
+        // 1. Initializing for the first time
         const payload = {
           recipientId: activeChat.participant._id,
           text: currentTypedString,
@@ -128,18 +129,24 @@ export default function MessagesPage({ user }) {
         const { data } = await api.post('/messages/initialize', payload);
         setNewMessage('');
         
-        const finalizedChatId = data?.message?.conversationId || data?.conversation?._id || data?.chatId;
+        // Robust ID Extraction (from Version 1)
+        const finalizedChatId = data?.message?.conversationId || data?.conversation?._id || data?.chatId || activeChat.participant._id;
+        
         const structuralActiveChat = {
           ...activeChat,
-          _id: finalizedChatId || 'fallback_routing_id'
+          _id: finalizedChatId
         };
 
+        // 2. State Sync (STOPS HERE—No second API call)
         setActiveChat(structuralActiveChat);
         setConversations(prev => [structuralActiveChat, ...prev.filter(c => c._id !== 'new_channel_context')]);
         
-        // Pull down message array directly returned by server initialization step
-        if (data?.message) setMessages([data.message]);
+        // Safely map the returned message payload
+        const incomingMsg = data?.message && typeof data.message === 'object' ? data.message : data;
+        setMessages([incomingMsg]);
+
       } else {
+        // Ordinary message flow for established channels
         const { data } = await api.post(`/messages/channel/${activeChat._id}/send`, {
           text: currentTypedString,
           recipientId: activeChat.participant._id,

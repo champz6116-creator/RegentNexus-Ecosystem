@@ -14,6 +14,7 @@ const userRoutes = require('./routes/users');
 const reportRoutes = require('./routes/reports');
 const adminRoutes = require('./routes/admin');
 const transactionRoutes = require('./routes/transactions');
+const messageRoutes = require('./routes/messageRoutes');
 const { verifyToken } = require('./middleware/auth');
 
 const app = express();
@@ -33,7 +34,7 @@ app.use(cors({
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      callback(new Error('Security Blocked: Origin context validation failed via RegentNexus CORS framework.'));
+      callback(new Error('Access denied by security policy. Origin not allowed: ' + origin));
     }
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -57,6 +58,9 @@ app.use('/api/listings', verifyToken, itemRoutes);
 app.use('/api/reports', verifyToken, reportRoutes);
 app.use('/api/admin', verifyToken, adminRoutes);
 app.use('/api/transactions', verifyToken, transactionRoutes);
+
+// ✅ MOUNTED PIPELINE: Attach message endpoints behind validation guards
+app.use('/api/messages', verifyToken, messageRoutes);
 
 io.on('connection', (socket) => {
   console.log('socket connected', socket.id);

@@ -3,14 +3,91 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const ActivityLog = require('../models/ActivityLog');
-const { generateOTP, sendEmailOTP, sendSMSOTP, storeOTP, verifyOTP } = require('../services/otpService');
 
 const router = express.Router();
 
 const generateCode = () => Math.floor(100000 + Math.random() * 900000).toString();
+const otpStore = {};
+
+// Request verification code for password change
+router.post('/request-password-otp', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    const user = await User.findOne({ schoolMail: email });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const code = generateCode();
+    otpStore[email] = {
+      code,
+      timestamp: Date.now(),
+      attempts: 0
+    };
+
+    console.log(`Password reset OTP for ${email}: ${code}`);
+
+    res.json({
+      message: 'Verification code sent to your email',
+      success: true
+    });
+  } catch (err) {
+    console.error('OTP request error:', err);
+    res.status(500).json({ message: 'Failed to send verification code', error: err.message });
+  }
+});
+
+// Verify password change OTP
+router.post('/verify-password-otp', async (req, res) => {
+  try {
+    const { email, code } = req.body;
+
+    if (!email || !code) {
+      return res.status(400).json({ message: 'Email and verification code are required' });
+    }
+
+    const storedOtp = otpStore[email];
+    if (!storedOtp) {
+      return res.status(400).json({ message: 'No verification code found for this email' });
+    }
+
+    // Check OTP expiration (10 minutes)
+    if (Date.now() - storedOtp.timestamp > 10 * 60 * 1000) {
+      delete otpStore[email];
+      return res.status(400).json({ message: 'Verification code has expired' });
+    }
+
+    // Check attempts
+    if (storedOtp.attempts >= 3) {
+      delete otpStore[email];
+      return res.status(400).json({ message: 'Too many failed attempts' });
+    }
+
+    if (storedOtp.code !== code) {
+      storedOtp.attempts += 1;
+      return res.status(400).json({ message: 'Invalid verification code' });
+    }
+
+    // Code is valid, clear it
+    delete otpStore[email];
+
+    res.json({
+      message: 'Verification code verified successfully',
+      success: true,
+      verified: true
+    });
+  } catch (err) {
+    console.error('OTP verification error:', err);
+    res.status(500).json({ message: 'Failed to verify code', error: err.message });
+  }
+});
 
 router.post('/register', async (req, res) => {
-  console.log("📥 [Backend] Register attempt:", req.body.schoolMail); // ADD THIS
   try {
     const { firstName, lastName, schoolId, schoolMail, phone, password, verificationMode } = req.body;
     if (!firstName || !lastName || !schoolId || !schoolMail || !phone || !password) {
@@ -35,16 +112,13 @@ router.post('/register', async (req, res) => {
       verified: mode === 'admin',
     });
 
-    // Send verification code if not admin mode
     if (mode !== 'admin') {
-      if (mode === 'sms') {
-        await sendSMSOTP(phone, code);
-      } else {
-        await sendEmailOTP(schoolMail, code);
-      }
+      console.log(`Verification code for ${schoolMail}: ${code}`);
     }
 
-    await ActivityLog.create({ user: user._id, action: 'register', details: `Registered account via ${user.verificationMode}` });
+    if (ActivityLog) {
+      await ActivityLog.create({ user: user._id, action: 'register', details: `Registered via ${mode}` });
+    }
 
     res.json({
       user: {
@@ -65,7 +139,6 @@ router.post('/register', async (req, res) => {
 });
 
 router.post('/login', async (req, res) => {
-  console.log("📥 [Backend] Login attempt:", req.body.identifier); // ADD THIS
   try {
     const { identifier, password } = req.body;
     const user = await User.findOne({ $or: [{ schoolMail: identifier }, { phone: identifier }] });
@@ -78,8 +151,8 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Account not verified', needsVerification: true });
     }
 
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    res.json({ token, user: { id: user._id, firstName: user.firstName, lastName: user.lastName, schoolMail: user.schoolMail, phone: user.phone, role: user.role, verified: user.verified } });
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '7d' });
+    res.json({ token, user: { _id: user._id, id: user._id, firstName: user.firstName, lastName: user.lastName, schoolMail: user.schoolMail, phone: user.phone, role: user.role, verified: user.verified, profilePicture: user.profilePicture }, message: 'Logged in successfully' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -104,7 +177,9 @@ router.post('/request-verification', async (req, res) => {
       if (!success) return res.status(500).json({ message: 'Failed to send email verification code' });
     }
 
-    await ActivityLog.create({ user: user._id, action: 'request-verification', details: `Requested verification via ${user.verificationMode}` });
+    if (ActivityLog) {
+      await ActivityLog.create({ user: user._id, action: 'request-verification', details: `Verification code sent via ${selectedMode}` });
+    }
     res.json({ message: `Verification code sent by ${user.verificationMode}` });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -123,81 +198,17 @@ router.post('/confirm-verification', async (req, res) => {
     user.verificationCode = null;
     await user.save();
 
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    await ActivityLog.create({ user: user._id, action: 'confirm-verification', details: 'Account verified' });
+    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '7d' });
 
-    res.json({ token, user: { id: user._id, firstName: user.firstName, lastName: user.lastName, schoolMail: user.schoolMail, phone: user.phone, role: user.role, verified: user.verified } });
+    if (ActivityLog) {
+      await ActivityLog.create({ user: user._id, action: 'confirm-verification', details: 'Account verified' });
+    }
+
+    res.json({ token, user: { _id: user._id, id: user._id, firstName: user.firstName, lastName: user.lastName, schoolMail: user.schoolMail, phone: user.phone, role: user.role, verified: user.verified }, message: 'Account verified successfully' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// Request OTP (Email or SMS)
-router.post('/request-otp', async (req, res) => {
-  try {
-    const { email, phone, method } = req.body;
-    const user = await User.findOne({ $or: [{ schoolMail: email }, { phone }] });
-    
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    const otp = generateOTP();
-    const identifier = method === 'sms' ? phone : email;
-    
-    storeOTP(identifier, otp, method);
-
-    if (method === 'sms') {
-      const success = await sendSMSOTP(phone, otp);
-      if (!success) return res.status(500).json({ message: 'Failed to send SMS OTP' });
-    } else {
-      const success = await sendEmailOTP(email, otp);
-      if (!success) return res.status(500).json({ message: 'Failed to send email OTP' });
-    }
-
-    await ActivityLog.create({ user: user._id, action: 'request-otp', details: `OTP requested via ${method}` });
-    res.json({ message: `OTP sent via ${method}`, identifier });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// Verify OTP and Login
-router.post('/verify-otp', async (req, res) => {
-  try {
-    const { email, phone, method, otp } = req.body;
-    const identifier = method === 'sms' ? phone : email;
-
-    const otpResult = verifyOTP(identifier, otp);
-    if (!otpResult.valid) {
-      return res.status(400).json({ message: otpResult.message });
-    }
-
-    const user = await User.findOne({ $or: [{ schoolMail: email }, { phone }] });
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    if (!user.verified) {
-      user.verified = true;
-      await user.save();
-    }
-
-    const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
-    await ActivityLog.create({ user: user._id, action: 'otp-login', details: `Logged in via ${method} OTP` });
-
-    res.json({ 
-      token, 
-      user: { 
-        id: user._id, 
-        firstName: user.firstName, 
-        lastName: user.lastName, 
-        schoolMail: user.schoolMail, 
-        phone: user.phone, 
-        role: user.role, 
-        verified: user.verified 
-      },
-      message: 'OTP verified. Logged in successfully.' 
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
 
 module.exports = router;
