@@ -1,8 +1,10 @@
 import axios from 'axios';
 
 const api = axios.create({
-  // Vite specific way to call the environment variable
-  baseURL: 'https://regent-nexus-backend.onrender.com/api',
+  // 🌟 Auto-switches to port 5173's local backend backend companion, or production
+  baseURL: import.meta.env.MODE === 'development'
+    ? 'http://localhost:5000/api'
+    : 'https://regent-nexus-backend.onrender.com/api',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
