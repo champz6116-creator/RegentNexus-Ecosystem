@@ -1,10 +1,10 @@
 import axios from 'axios';
 
 const api = axios.create({
-  // 🌟 Auto-switches to port 5173's local backend backend companion, or production
-  baseURL: import.meta.env.MODE === 'development'
-    ? 'http://localhost:5000/api'
-    : 'https://regent-nexus-backend.onrender.com/api',
+  // 🌟 Zero-guesswork: Checks the actual browser address bar
+  baseURL: window.location.hostname === 'localhost'
+    ? 'http://localhost:5000/api'                     // Local Dev
+    : 'https://regent-nexus-backend.onrender.com/api', // Render Live Prod
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
