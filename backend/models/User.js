@@ -16,12 +16,64 @@ const cartItemSchema = new mongoose.Schema({
 }, { _id: false });
 
 const userSchema = new mongoose.Schema({
-  firstName: { type: String, required: true },
-  lastName: { type: String, required: true },
-  schoolId: { type: String, required: true, unique: true },
-  schoolMail: { type: String, required: true, unique: true },
-  phone: { type: String, required: true, unique: true },
-  password: { type: String, required: true },
+  firstName: { 
+    type: String, 
+    required: true,
+    trim: true,
+    validate: {
+      validator: function(v) {
+        return /^[A-Za-zÀ-ÿ\s'-]+$/.test(v); // Rejects numbers & special symbols
+      },
+      message: 'First name can only contain letters, hyphens, or spaces.'
+    }
+  },
+  lastName: { 
+    type: String, 
+    required: true,
+    trim: true,
+    validate: {
+      validator: function(v) {
+        return /^[A-Za-zÀ-ÿ\s'-]+$/.test(v); 
+      },
+      message: 'Last name can only contain letters, hyphens, or spaces.'
+    }
+  },
+  schoolId: { 
+    type: String, 
+    required: true, 
+    unique: true,
+    trim: true 
+  },
+  schoolMail: { 
+    type: String, 
+    required: true, 
+    unique: true,
+    trim: true,
+    lowercase: true, // Forces lowercase mapping to avoid case-sensitivity issues
+    validate: {
+      validator: function(v) {
+        return /^[a-zA-Z0-9._%+-]+@regent\.edu\.gh$/.test(v);
+      },
+      message: 'Registration is restricted to authorized @regent.edu.gh email accounts.'
+    }
+  },
+  phone: { 
+    type: String, 
+    required: true, 
+    unique: true,
+    trim: true,
+    validate: {
+      validator: function(v) {
+        return /^\+?[0-9\s-]{10,15}$/.test(v); // Assures numerical telephone layout integrity
+      },
+      message: 'Please enter a valid phone number (10-15 digits).'
+    }
+  },
+  password: { 
+    type: String, 
+    required: true,
+    minlength: [8, 'Security requirement: Password must be at least 8 characters long']
+  },
   role: { type: String, enum: ['student', 'admin'], default: 'student' },
   
   // Verification Processing System
@@ -31,18 +83,19 @@ const userSchema = new mongoose.Schema({
   
   // Demographics & Customizations
   gender: { type: String, enum: ['Male', 'Female', ''], default: '' },
-  profileImage: { type: String, default: '' }, // Stores Cloudinary or local upload image URL string
-  
+  profileImage: { type: String, default: '' }, 
+
   // Global Governance & Administrative Tracking Flags
   active: { type: Boolean, default: true },
-  isBanned: { type: Boolean, default: false }, // Explicit Admin Governance block flag
-  
+  isBanned: { type: Boolean, default: false }, 
+  adminNote: { type: String, default: '' }, 
+
   // Interactive Application Relationships
   cart: [cartItemSchema],
   starredServices: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Item' }],
   ratings: [ratingSchema],
 }, { 
-  timestamps: true // Replaces manual createdAt fields with automated, standard Mongo createdAt and updatedAt markers
+  timestamps: true 
 });
 
 module.exports = mongoose.model('User', userSchema);

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom'; // 🌟 FIXED: Native link handler for SPA navigation
+import { Link } from 'react-router-dom'; 
 import { 
   Users, Package, AlertTriangle, HelpCircle, 
   ShieldAlert, Ban, CheckCircle2, XCircle, RefreshCw, Search
@@ -13,6 +13,7 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState(''); 
   const [loadingMetrics, setLoadingMetrics] = useState(true);
   const [loadingGrid, setLoadingGrid] = useState(false);
+  const [processingId, setProcessingId] = useState(null); // Prevents UI race conditions during administrative operations
 
   const fetchAdminMetrics = async () => {
     try {
@@ -30,11 +31,7 @@ export default function AdminPage() {
     try {
       setLoadingGrid(true);
       const { data } = await api.get(`/admin/data/${activeTab}`);
-      if (Array.isArray(data)) {
-        setDataGrid(data);
-      } else {
-        setDataGrid([]);
-      }
+      setDataGrid(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error(`Could not fetch system directories for ${activeTab}.`, error);
       setDataGrid([]); 
@@ -43,9 +40,8 @@ export default function AdminPage() {
     }
   };
 
-  const triggerGlobalSync = () => {
-    fetchAdminMetrics();
-    fetchGridData();
+  const triggerGlobalSync = async () => {
+    await Promise.all([fetchAdminMetrics(), fetchGridData()]);
   };
 
   useEffect(() => {
@@ -59,28 +55,40 @@ export default function AdminPage() {
 
   const handleToggleBan = async (id) => {
     try {
+      setProcessingId(id);
       await api.post(`/admin/users/${id}/ban`);
-      triggerGlobalSync(); 
+      await triggerGlobalSync(); 
     } catch (err) {
       console.error("Account governance operation faulted.", err);
+      alert(err.response?.data?.message || "Failed to update account clearance state.");
+    } finally {
+      setProcessingId(null);
     }
   };
 
   const handleReportAction = async (id, resolution) => {
     try {
+      setProcessingId(id);
       await api.post(`/admin/reports/${id}/resolve`, { status: resolution });
-      triggerGlobalSync(); 
+      await triggerGlobalSync(); 
     } catch (err) {
       console.error("Report management operation faulted.", err);
+      alert(err.response?.data?.message || "Failed to process content report action.");
+    } finally {
+      setProcessingId(null);
     }
   };
 
   const handleResolveTicket = async (id, resolutionState) => {
     try {
+      setProcessingId(id);
       await api.post(`/admin/requests/${id}/resolve`, { status: resolutionState });
-      triggerGlobalSync();
+      await triggerGlobalSync();
     } catch (err) {
       console.error("Help center lifecycle adjustment faulted.", err);
+      alert(err.response?.data?.message || "Failed to adjust help ticket status.");
+    } finally {
+      setProcessingId(null);
     }
   };
 
@@ -120,9 +128,10 @@ export default function AdminPage() {
           </div>
           <button 
             onClick={triggerGlobalSync}
-            className="self-start sm:self-center p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition shadow-2xs"
+            disabled={loadingGrid || loadingMetrics}
+            className="self-start sm:self-center p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition shadow-2xs disabled:opacity-50"
           >
-            <RefreshCw size={15} />
+            <RefreshCw size={15} className={loadingGrid || loadingMetrics ? "animate-spin" : ""} />
           </button>
         </div>
 
@@ -205,7 +214,6 @@ export default function AdminPage() {
                     {filteredDataGrid.map((item) => (
                       <tr key={item._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                         <td className="py-3.5 font-bold">
-                          {/* 🌟 FIXED: Links directly into your peer layout path using react-router Link */}
                           <Link 
                             to={`/peer/${item._id}`} 
                             className="text-emerald-600 dark:text-emerald-400 hover:underline transition-all"
@@ -218,14 +226,15 @@ export default function AdminPage() {
                         <td className="py-3.5 text-right">
                           <button 
                             onClick={() => handleToggleBan(item._id)} 
-                            className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition border ${
+                            disabled={processingId === item._id}
+                            className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition border disabled:opacity-50 ${
                               !item.active 
                                 ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100' 
                                 : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 hover:bg-red-100'
                             }`}
                           >
                             <Ban size={13} />
-                            <span>{!item.active ? 'Activate / Unban' : 'Ban Account'}</span>
+                            <span>{processingId === item._id ? 'Updating...' : (!item.active ? 'Activate / Unban' : 'Ban Account')}</span>
                           </button>
                         </td>
                       </tr>
@@ -249,7 +258,6 @@ export default function AdminPage() {
                     {filteredDataGrid.map((item) => (
                       <tr key={item._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                         <td className="py-3.5 font-bold">
-                          {/* 🌟 FIXED: Links directly into your DetailedScreen route using react-router Link */}
                           <Link 
                             to={`/listings/${item._id}`} 
                             className="text-emerald-600 dark:text-emerald-400 hover:underline transition-all"
@@ -288,8 +296,20 @@ export default function AdminPage() {
                         <td className="py-3.5 font-black uppercase text-xs tracking-wider text-amber-600 dark:text-amber-500">{rep.targetType}</td>
                         <td className="py-3.5 font-medium text-xs text-slate-600 dark:text-slate-300">{rep.feedback}</td>
                         <td className="py-3.5 text-right space-x-2">
-                          <button onClick={() => handleReportAction(rep._id, 'accepted')} className="p-1.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200/20 rounded-xl hover:bg-emerald-100 transition"><CheckCircle2 size={15} /></button>
-                          <button onClick={() => handleReportAction(rep._id, 'rejected')} className="p-1.5 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200/20 rounded-xl hover:bg-red-100 transition"><XCircle size={15} /></button>
+                          <button 
+                            disabled={processingId === rep._id}
+                            onClick={() => handleReportAction(rep._id, 'accepted')} 
+                            className="p-1.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200/20 rounded-xl hover:bg-emerald-100 transition disabled:opacity-50"
+                          >
+                            <CheckCircle2 size={15} />
+                          </button>
+                          <button 
+                            disabled={processingId === rep._id}
+                            onClick={() => handleReportAction(rep._id, 'rejected')} 
+                            className="p-1.5 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200/20 rounded-xl hover:bg-red-100 transition disabled:opacity-50"
+                          >
+                            <XCircle size={15} />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -316,14 +336,16 @@ export default function AdminPage() {
                           {req.status === 'pending' ? (
                             <div className="inline-flex space-x-2">
                               <button 
+                                disabled={processingId === req._id}
                                 onClick={() => handleResolveTicket(req._id, 'resolved')}
-                                className="px-2.5 py-1 text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-100 transition"
+                                className="px-2.5 py-1 text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-100 transition disabled:opacity-50"
                               >
-                                Mark Resolved
+                                {processingId === req._id ? 'Working...' : 'Mark Resolved'}
                               </button>
                               <button 
+                                disabled={processingId === req._id}
                                 onClick={() => handleResolveTicket(req._id, 'rejected')}
-                                className="px-2.5 py-1 text-[10px] font-bold bg-red-50 dark:bg-red-950/20 border border-red-200 text-red-600 rounded-lg hover:bg-red-100 transition"
+                                className="px-2.5 py-1 text-[10px] font-bold bg-red-50 dark:bg-red-950/20 border border-red-200 text-red-600 rounded-lg hover:bg-red-100 transition disabled:opacity-50"
                               >
                                 Decline
                               </button>

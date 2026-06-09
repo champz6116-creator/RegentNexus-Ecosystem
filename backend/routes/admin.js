@@ -67,20 +67,65 @@ router.get('/data/:tab', requireRole('admin'), async (req, res) => {
 
 /**
  * POST /api/admin/reports/:id/resolve
- * Modifies pending report states and appends verification log trails
+ * Contextual Governance Suite: Handles Dismiss, Item Purge, or Global Account Ban
  */
 router.post('/reports/:id/resolve', requireRole('admin'), async (req, res) => {
-  const { status } = req.body; // Expected values: 'accepted' | 'rejected'
+  const { actionType } = req.body; // Expected: 'dismiss' | 'delete-listing' | 'ban-user-all'
   try {
-    const report = await Report.findByIdAndUpdate(req.params.id, { status }, { new: true });
+    const report = await Report.findById(req.params.id);
     if (!report) return res.status(404).json({ message: "Report node missing." });
+
+    if (actionType === 'dismiss') {
+      report.status = 'rejected';
+    } 
     
+    else if (actionType === 'delete-listing') {
+      report.status = 'accepted';
+      if (report.targetType === 'listing') {
+        await Item.findByIdAndDelete(report.targetId); // Wipe out specific listing
+      }
+    } 
+    
+    else if (actionType === 'ban-user-all') {
+      report.status = 'accepted';
+      
+      // Identify target user id
+      let targetUserId = report.targetId;
+      if (report.targetType === 'listing') {
+        const item = await Item.findById(report.targetId);
+        if (item) targetUserId = item.owner;
+      }
+
+      // Nuclear Cascade: Ban user account and purge all listings owned by them
+      await User.findByIdAndUpdate(targetUserId, { active: false, isBanned: true });
+      await Item.deleteMany({ owner: targetUserId });
+    }
+
+    report.resolvedBy = req.userId;
+    await report.save();
+
     await ActivityLog.create({ 
       user: req.userId, 
-      action: `${status}-report`, 
-      details: `Resolved report ${report._id} status state as ${status}` 
+      action: `resolve-report-${actionType}`, 
+      details: `Processed report ${report._id} via contextual action: ${actionType}` 
     });
-    return res.json({ message: `Report processed as ${status} successfully.`, report });
+
+    return res.json({ message: `Governance action '${actionType}' completed successfully.`, report });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+/**
+ * POST /api/admin/users/:id/note
+ * Update administrative sticky memos attached to individual student accounts
+ */
+router.post('/users/:id/note', requireRole('admin'), async (req, res) => {
+  const { adminNote } = req.body;
+  try {
+    const user = await User.findByIdAndUpdate(req.params.id, { adminNote }, { new: true });
+    if (!user) return res.status(404).json({ message: "User not found." });
+    return res.json({ message: "Sticky note updated successfully.", adminNote: user.adminNote });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }

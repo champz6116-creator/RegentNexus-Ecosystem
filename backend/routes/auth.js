@@ -3,6 +3,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const ActivityLog = require('../models/ActivityLog');
+const Request = require('../models/Request'); 
+const Report = require('../models/Report');
 
 const router = express.Router();
 
@@ -13,31 +15,17 @@ const otpStore = {};
 router.post('/request-password-otp', async (req, res) => {
   try {
     const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({ message: 'Email is required' });
-    }
+    if (!email) return res.status(400).json({ message: 'Email is required' });
 
     const user = await User.findOne({ schoolMail: email });
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
     const code = generateCode();
-    otpStore[email] = {
-      code,
-      timestamp: Date.now(),
-      attempts: 0
-    };
+    otpStore[email] = { code, timestamp: Date.now(), attempts: 0 };
 
     console.log(`Password reset OTP for ${email}: ${code}`);
-
-    res.json({
-      message: 'Verification code sent to your email',
-      success: true
-    });
+    res.json({ message: 'Verification code sent to your email', success: true });
   } catch (err) {
-    console.error('OTP request error:', err);
     res.status(500).json({ message: 'Failed to send verification code', error: err.message });
   }
 });
@@ -46,23 +34,16 @@ router.post('/request-password-otp', async (req, res) => {
 router.post('/verify-password-otp', async (req, res) => {
   try {
     const { email, code } = req.body;
-
-    if (!email || !code) {
-      return res.status(400).json({ message: 'Email and verification code are required' });
-    }
+    if (!email || !code) return res.status(400).json({ message: 'Email and verification code are required' });
 
     const storedOtp = otpStore[email];
-    if (!storedOtp) {
-      return res.status(400).json({ message: 'No verification code found for this email' });
-    }
+    if (!storedOtp) return res.status(400).json({ message: 'No code found for this email' });
 
-    // Check OTP expiration (10 minutes)
     if (Date.now() - storedOtp.timestamp > 10 * 60 * 1000) {
       delete otpStore[email];
       return res.status(400).json({ message: 'Verification code has expired' });
     }
 
-    // Check attempts
     if (storedOtp.attempts >= 3) {
       delete otpStore[email];
       return res.status(400).json({ message: 'Too many failed attempts' });
@@ -73,47 +54,57 @@ router.post('/verify-password-otp', async (req, res) => {
       return res.status(400).json({ message: 'Invalid verification code' });
     }
 
-    // Code is valid, clear it
     delete otpStore[email];
-
-    res.json({
-      message: 'Verification code verified successfully',
-      success: true,
-      verified: true
-    });
+    res.json({ message: 'Verified successfully', success: true, verified: true });
   } catch (err) {
-    console.error('OTP verification error:', err);
     res.status(500).json({ message: 'Failed to verify code', error: err.message });
   }
 });
 
+// Registration Route
 router.post('/register', async (req, res) => {
   try {
-    const { firstName, lastName, schoolId, schoolMail, phone, password, verificationMode } = req.body;
+    const { firstName, lastName, schoolId, schoolMail, phone, password, verificationMode, gender } = req.body;
+    
     if (!firstName || !lastName || !schoolId || !schoolMail || !phone || !password) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    const existing = await User.findOne({ $or: [{ schoolMail }, { phone }, { schoolId }] });
-    if (existing) return res.status(400).json({ message: 'Account already exists with provided details' });
+    const normalizedEmail = schoolMail.trim().toLowerCase();
+    if (!normalizedEmail.endsWith('@regent.edu.gh')) {
+      return res.status(400).json({ 
+        message: 'Registration rejected. You must use an authorized @regent.edu.gh university email.' 
+      });
+    }
+
+    const existing = await User.findOne({ $or: [{ schoolMail: normalizedEmail }, { phone }, { schoolId }] });
+    if (existing) return res.status(400).json({ message: 'Account already exists' });
 
     const mode = verificationMode || 'email';
     const code = mode === 'admin' ? null : generateCode();
     const hashed = await bcrypt.hash(password, 10);
+
     const user = await User.create({
       firstName,
       lastName,
       schoolId,
-      schoolMail,
+      schoolMail: normalizedEmail,
       phone,
+      gender, 
       password: hashed,
       verificationMode: mode,
       verificationCode: code,
-      verified: mode === 'admin',
+      verified: false, 
     });
 
-    if (mode !== 'admin') {
-      console.log(`Verification code for ${schoolMail}: ${code}`);
+    if (mode === 'admin') {
+      await Request.create({
+        schoolMail: normalizedEmail,
+        feedback: `New User Registration Approval Request: ${firstName} ${lastName} (ID: ${schoolId})`,
+        status: 'pending'
+      });
+    } else {
+      console.log(`Verification code for ${normalizedEmail}: ${code}`);
     }
 
     if (ActivityLog) {
@@ -121,23 +112,19 @@ router.post('/register', async (req, res) => {
     }
 
     res.json({
-      user: {
-        id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        schoolMail: user.schoolMail,
-        phone: user.phone,
-        role: user.role,
-        verified: user.verified,
-      },
-      verificationPending: !user.verified,
-      message: user.verified ? 'Account registered and verified successfully.' : `Verification code sent by ${user.verificationMode}. Use 6-digit code to confirm.`,
+      user: { id: user._id, firstName: user.firstName, role: user.role, verified: user.verified },
+      verificationPending: true,
+      verificationMode: mode,
+      message: mode === 'admin' 
+        ? 'Account registered. Awaiting administrative approval.' 
+        : `Verification code sent by ${mode}.`,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
+// Login Route with verification fallback alignment
 router.post('/login', async (req, res) => {
   try {
     const { identifier, password } = req.body;
@@ -147,12 +134,22 @@ router.post('/login', async (req, res) => {
 
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(400).json({ message: 'Invalid credentials' });
+    
+    // Aligned to pass verification Mode if account is unverified
     if (!user.verified) {
-      return res.status(401).json({ message: 'Account not verified', needsVerification: true });
+      return res.status(401).json({ 
+        message: 'Account not verified', 
+        needsVerification: true,
+        verificationMode: user.verificationMode || 'email'
+      });
     }
 
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '7d' });
-    res.json({ token, user: { _id: user._id, id: user._id, firstName: user.firstName, lastName: user.lastName, schoolMail: user.schoolMail, phone: user.phone, role: user.role, verified: user.verified, profilePicture: user.profilePicture }, message: 'Logged in successfully' });
+    res.json({ 
+        token, 
+        user: { _id: user._id, firstName: user.firstName, schoolMail: user.schoolMail, role: user.role, verified: user.verified }, 
+        message: 'Logged in successfully' 
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -169,18 +166,10 @@ router.post('/request-verification', async (req, res) => {
     user.verificationCode = generateCode();
     await user.save();
 
-    if (selectedMode === 'sms') {
-      const success = await sendSMSOTP(user.phone, user.verificationCode);
-      if (!success) return res.status(500).json({ message: 'Failed to send SMS verification code' });
-    } else {
-      const success = await sendEmailOTP(user.schoolMail, user.verificationCode);
-      if (!success) return res.status(500).json({ message: 'Failed to send email verification code' });
-    }
-
     if (ActivityLog) {
-      await ActivityLog.create({ user: user._id, action: 'request-verification', details: `Verification code sent via ${selectedMode}` });
+      await ActivityLog.create({ user: user._id, action: 'request-verification', details: `Sent via ${selectedMode}` });
     }
-    res.json({ message: `Verification code sent by ${user.verificationMode}` });
+    res.json({ message: `Verification code sent by ${selectedMode.toUpperCase()}` });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -191,7 +180,7 @@ router.post('/confirm-verification', async (req, res) => {
     const { identifier, code } = req.body;
     const user = await User.findOne({ $or: [{ schoolMail: identifier }, { phone: identifier }] });
     if (!user || user.verificationCode !== code) {
-      return res.status(400).json({ message: 'Invalid verification code' });
+      return res.status(400).json({ message: 'Invalid code' });
     }
 
     user.verified = true;
@@ -199,16 +188,12 @@ router.post('/confirm-verification', async (req, res) => {
     await user.save();
 
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '7d' });
+    if (ActivityLog) await ActivityLog.create({ user: user._id, action: 'confirm-verification', details: 'Verified' });
 
-    if (ActivityLog) {
-      await ActivityLog.create({ user: user._id, action: 'confirm-verification', details: 'Account verified' });
-    }
-
-    res.json({ token, user: { _id: user._id, id: user._id, firstName: user.firstName, lastName: user.lastName, schoolMail: user.schoolMail, phone: user.phone, role: user.role, verified: user.verified }, message: 'Account verified successfully' });
+    res.json({ token, user: { _id: user._id, firstName: user.firstName, role: user.role, verified: true }, message: 'Verified successfully' });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
-
 
 module.exports = router;

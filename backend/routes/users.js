@@ -5,6 +5,9 @@ const bcrypt = require('bcryptjs');
 
 const router = express.Router();
 
+// Database model mappings required at the top of routes/user.js if not present:
+const Request = require('../models/Request');
+const Report = require('../models/Report');
 // =========================================================================
 // FETCH ROUTES
 // =========================================================================
@@ -197,6 +200,49 @@ router.post('/:id/rate', verifyToken, async (req, res) => {
   } catch (error) {
     console.error('Rating error:', error);
     res.status(500).json({ message: 'Failed to submit rating', error: error.message });
+  }
+});
+
+/**
+ * POST /api/users/submit-help
+ * Dispatches a general support ticket from SettingsPage into the Admin Requests pipeline
+ */
+router.post('/submit-help', verifyToken, async (req, res) => {
+  const { schoolMail, feedback } = req.body;
+  try {
+    if (!feedback) return res.status(400).json({ message: "Support summary description cannot be left blank." });
+    
+    const newTicket = await Request.create({
+      schoolMail: schoolMail || "anonymous@regent.edu.gh",
+      feedback,
+      status: 'pending'
+    });
+    return res.status(201).json({ success: true, message: "Ticket filed successfully.", newTicket });
+  } catch (err) {
+    return res.status(500).json({ message: "Could not pipeline support request.", error: err.message });
+  }
+});
+
+/**
+ * POST /api/users/submit-report
+ * Files an ecosystem report/feedback string from SettingsPage into the Admin Reports ledger
+ */
+router.post('/submit-report', verifyToken, async (req, res) => {
+  const { targetType, targetId, category, itemTitle, feedback } = req.body;
+  try {
+    if (!feedback) return res.status(400).json({ message: "Report notes are required." });
+
+    const newReport = await Report.create({
+      reporter: req.userId,
+      targetType: targetType || 'user',
+      targetId: targetId || req.userId, // Defaults safely onto self-index if general feedback
+      category: category || 'General Feedback',
+      itemTitle: itemTitle || '',
+      feedback
+    });
+    return res.status(201).json({ success: true, message: "Report logged successfully.", newReport });
+  } catch (err) {
+    return res.status(500).json({ message: "Could not compile tracking log.", error: err.message });
   }
 });
 
