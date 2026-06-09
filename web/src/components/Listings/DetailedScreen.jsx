@@ -18,7 +18,7 @@ export default function DetailedScreen({ user, onUpdateUser }) {
       } catch (err) {
         console.error("Failed to load item details", err);
       } finally {
-        loading(false);
+        setLoading(false); // 🌟 FIX: Change this from true to false so the component renders!
       }
     };
     if (itemId) fetchItemDetails();

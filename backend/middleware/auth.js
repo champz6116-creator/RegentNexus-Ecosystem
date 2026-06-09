@@ -33,22 +33,23 @@ async function verifyToken(req, res, next) {
 /**
  * Restricts route clearance mappings based on granular system access profiles.
  * Accommodates explicit arrays for multiple permitted user groupings.
- * @param {string|string[]} role - The permitted authorization classification(s)
  */
 function requireRole(role) {
   return (req, res, next) => {
-    // Falls back gracefully on legacy role structures or freshly hydrated database vectors
     const activeRole = req.user?.role || req.role;
+
+    // 🌟 DIAGNOSTIC LOG: See exactly who is attempting access in your backend terminal
+    console.log(`🛡️ Role Verification Gate -> Required: [${role}] | Account Has: [${activeRole}]`);
 
     if (Array.isArray(role)) {
       if (!role.includes(activeRole)) {
         return res.status(403).json({ 
-          message: `You don't have permission to view this page.` 
+          message: `Forbidden: You do not have the required administrative clearance.` 
         });
       }
     } else if (activeRole !== role) {
       return res.status(403).json({ 
-        message: `You don't have permission to view this page.` 
+        message: `Forbidden: You do not have the required administrative clearance.` 
       });
     }
     

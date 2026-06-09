@@ -35,16 +35,23 @@ export default function MessagesPage({ user }) {
     if (messages.length > 0) scrollToBottom();
   }, [messages]);
 
-  // --- 🌟 SETUP REAL-TIME SOCKET CONNECTION ---
+// --- 🌟 SETUP REAL-TIME SOCKET CONNECTION ---
   useEffect(() => {
-    const backendUrl = api.defaults.baseURL || window.location.origin;
-    const socketInstance = io(backendUrl);
+    // 🌟 Check the address bar to connect cleanly locally or on Render
+    const targetSocketUrl = window.location.hostname === 'localhost' 
+      ? 'http://localhost:5000' 
+      : 'https://regent-nexus-backend.onrender.com';
+
+    const socketInstance = io(targetSocketUrl, {
+      transports: ['websocket'], // Forces direct websocket connection, bypassing 400 bad requests
+      withCredentials: true
+    });
+    
     setSocket(socketInstance);
 
     // Dynamic stream listener
     socketInstance.on('receive_message', (msg) => {
       setMessages((prev) => {
-        // Prevent duplicate updates if state has processed it
         if (prev.some((m) => m._id === msg._id)) return prev;
         return [...prev, msg];
       });

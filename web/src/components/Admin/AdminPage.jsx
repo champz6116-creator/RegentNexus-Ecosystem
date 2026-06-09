@@ -1,18 +1,19 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom'; // 🌟 FIXED: Native link handler for SPA navigation
 import { 
   Users, Package, AlertTriangle, HelpCircle, 
-  ShieldAlert, Ban, CheckCircle2, XCircle, RefreshCw 
+  ShieldAlert, Ban, CheckCircle2, XCircle, RefreshCw, Search
 } from 'lucide-react';
 import api from "../../api";
 
 export default function AdminPage() {
-  const [activeTab, setActiveTab] = useState('users'); // Clickable tile state controller
+  const [activeTab, setActiveTab] = useState('users'); 
   const [metrics, setMetrics] = useState({ users: 0, listings: 0, reports: 0, requests: 0 });
   const [dataGrid, setDataGrid] = useState([]);
+  const [searchQuery, setSearchQuery] = useState(''); 
   const [loadingMetrics, setLoadingMetrics] = useState(true);
   const [loadingGrid, setLoadingGrid] = useState(false);
 
-  // Sync Global Diagnostic Dashboard Metrics
   const fetchAdminMetrics = async () => {
     try {
       setLoadingMetrics(true);
@@ -25,41 +26,26 @@ export default function AdminPage() {
     }
   };
 
-  // Fetch the active tab's specific details grid
   const fetchGridData = async () => {
     try {
       setLoadingGrid(true);
       const { data } = await api.get(`/admin/data/${activeTab}`);
-      setDataGrid(data);
+      if (Array.isArray(data)) {
+        setDataGrid(data);
+      } else {
+        setDataGrid([]);
+      }
     } catch (error) {
-      console.error(`Could not fetch system directories for ${activeTab}. Using fallback routing.`);
-      loadFallbackGridData();
+      console.error(`Could not fetch system directories for ${activeTab}.`, error);
+      setDataGrid([]); 
     } finally {
       setLoadingGrid(false);
     }
   };
 
-  // Fallback structures to keep the UI active during routing configurations
-  const loadFallbackGridData = () => {
-    if (activeTab === 'users') {
-      setDataGrid([
-        { _id: '1', firstName: 'Kwame', lastName: 'Mensah', schoolId: 'RUST-2023-049', schoolMail: 'k.mensah@regent.edu.gh', active: true },
-        { _id: '2', firstName: 'Ama', lastName: 'Osei', schoolId: 'RUST-2024-112', schoolMail: 'a.osei@regent.edu.gh', active: false }
-      ]);
-    } else if (activeTab === 'listings') {
-      setDataGrid([
-        { _id: '101', title: 'HP EliteBook 840 G5', price: 3500, category: 'Electronics', status: 'active' },
-        { _id: '102', title: 'Academic Tutorial Service', price: 150, category: 'Services', status: 'active' }
-      ]);
-    } else if (activeTab === 'reports') {
-      setDataGrid([
-        { _id: 'r1', targetType: 'listing', feedback: 'Inappropriate pricing note listed.', status: 'pending' }
-      ]);
-    } else if (activeTab === 'requests') {
-      setDataGrid([
-        { _id: 'req1', schoolMail: 's.turkson@regent.edu.gh', feedback: 'Unable to authenticate via institutional mail verification gateway.', status: 'pending' }
-      ]);
-    }
+  const triggerGlobalSync = () => {
+    fetchAdminMetrics();
+    fetchGridData();
   };
 
   useEffect(() => {
@@ -68,34 +54,62 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchGridData();
+    setSearchQuery(''); 
   }, [activeTab]);
 
-  // Account Constraint Governance Action
-  const handleToggleBan = async (id, currentActiveStatus) => {
+  const handleToggleBan = async (id) => {
     try {
       await api.post(`/admin/users/${id}/ban`);
-      setDataGrid(prev => prev.map(u => u._id === id ? { ...u, active: !currentActiveStatus } : u));
-    } catch {
-      // Visual fallback state mutation
-      setDataGrid(prev => prev.map(u => u._id === id ? { ...u, active: !currentActiveStatus } : u));
+      triggerGlobalSync(); 
+    } catch (err) {
+      console.error("Account governance operation faulted.", err);
     }
   };
 
-  // Infrastructure Resolutions Handler
   const handleReportAction = async (id, resolution) => {
     try {
       await api.post(`/admin/reports/${id}/resolve`, { status: resolution });
-      fetchGridData();
+      triggerGlobalSync(); 
     } catch (err) {
-      setDataGrid(prev => prev.filter(r => r._id !== id));
+      console.error("Report management operation faulted.", err);
     }
   };
+
+  const handleResolveTicket = async (id, resolutionState) => {
+    try {
+      await api.post(`/admin/requests/${id}/resolve`, { status: resolutionState });
+      triggerGlobalSync();
+    } catch (err) {
+      console.error("Help center lifecycle adjustment faulted.", err);
+    }
+  };
+
+  const filteredDataGrid = dataGrid.filter((item) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+
+    if (activeTab === 'users') {
+      const fullName = `${item.firstName || ''} ${item.lastName || ''}`.toLowerCase();
+      const studentId = (item.schoolId || '').toLowerCase();
+      return fullName.includes(query) || studentId.includes(query);
+    }
+    if (activeTab === 'listings') {
+      return (item.title || '').toLowerCase().includes(query);
+    }
+    if (activeTab === 'reports') {
+      return (item.feedback || '').toLowerCase().includes(query) || (item.targetType || '').toLowerCase().includes(query);
+    }
+    if (activeTab === 'requests') {
+      return (item.schoolMail || '').toLowerCase().includes(query) || (item.feedback || '').toLowerCase().includes(query);
+    }
+    return true;
+  });
 
   return (
     <div className="w-full min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-6 transition-colors duration-200">
       <div className="max-w-7xl mx-auto">
         
-        {/* Terminal Title Banner */}
+        {/* Title Banner */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
@@ -105,14 +119,14 @@ export default function AdminPage() {
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Manage university users, monitor campus listings, and resolve reported issues.</p>
           </div>
           <button 
-            onClick={() => { fetchAdminMetrics(); fetchGridData(); }}
+            onClick={triggerGlobalSync}
             className="self-start sm:self-center p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition shadow-2xs"
           >
             <RefreshCw size={15} />
           </button>
         </div>
 
-        {/* 4.2 Clickable Responsive Metric Control Arrays */}
+        {/* Metric Navigation Tiles */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {[
             { id: 'users', label: 'Total Users', value: metrics.users, icon: Users },
@@ -146,11 +160,27 @@ export default function AdminPage() {
           })}
         </div>
 
-        {/* 4.3 Isolated Administration Matrix Workspace */}
+        {/* Administration Ledger Panel */}
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-2xs">
-          <div className="mb-5">
-            <h3 className="text-base font-black capitalize tracking-tight">{activeTab} Administration Ledger</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Viewing active entries for the selected category.</p>
+          
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+            <div>
+              <h3 className="text-base font-black capitalize tracking-tight">{activeTab} Administration Ledger</h3>
+              <p className="text-xs text-slate-400 mt-0.5">Viewing real-time records sourced straight from the cloud engine.</p>
+            </div>
+            
+            <div className="relative w-full md:w-72">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                <Search size={16} />
+              </span>
+              <input 
+                type="text"
+                placeholder={`Search current grid segment...`}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 focus:outline-hidden focus:border-emerald-500 transition-colors font-medium"
+              />
+            </div>
           </div>
 
           {loadingGrid ? (
@@ -172,14 +202,22 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {dataGrid.map((item) => (
+                    {filteredDataGrid.map((item) => (
                       <tr key={item._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                        <td className="py-3.5 font-bold text-slate-900 dark:text-slate-50">{item.firstName} {item.lastName}</td>
+                        <td className="py-3.5 font-bold">
+                          {/* 🌟 FIXED: Links directly into your peer layout path using react-router Link */}
+                          <Link 
+                            to={`/peer/${item._id}`} 
+                            className="text-emerald-600 dark:text-emerald-400 hover:underline transition-all"
+                          >
+                            {item.firstName} {item.lastName}
+                          </Link>
+                        </td>
                         <td className="py-3.5 font-mono text-xs text-slate-500 dark:text-slate-400">{item.schoolId || 'N/A'}</td>
                         <td className="py-3.5 text-xs font-semibold text-slate-600 dark:text-slate-400">{item.schoolMail}</td>
                         <td className="py-3.5 text-right">
                           <button 
-                            onClick={() => handleToggleBan(item._id, item.active)} 
+                            onClick={() => handleToggleBan(item._id)} 
                             className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition border ${
                               !item.active 
                                 ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100' 
@@ -187,7 +225,7 @@ export default function AdminPage() {
                             }`}
                           >
                             <Ban size={13} />
-                            <span>{!item.active ? 'Activate/Unban' : 'Ban Account'}</span>
+                            <span>{!item.active ? 'Activate / Unban' : 'Ban Account'}</span>
                           </button>
                         </td>
                       </tr>
@@ -208,11 +246,21 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {dataGrid.map((item) => (
+                    {filteredDataGrid.map((item) => (
                       <tr key={item._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
-                        <td className="py-3.5 font-bold text-slate-900 dark:text-slate-50">{item.title}</td>
+                        <td className="py-3.5 font-bold">
+                          {/* 🌟 FIXED: Links directly into your DetailedScreen route using react-router Link */}
+                          <Link 
+                            to={`/listings/${item._id}`} 
+                            className="text-emerald-600 dark:text-emerald-400 hover:underline transition-all"
+                          >
+                            {item.title}
+                          </Link>
+                        </td>
                         <td className="py-3.5 text-xs font-extrabold text-emerald-600 dark:text-emerald-400">{item.category}</td>
-                        <td className="py-3.5 font-black text-sm text-slate-900 dark:text-slate-50">GHS {item.price ? item.price.toFixed(2) : '0.00'}</td>
+                        <td className="py-3.5 font-black text-sm text-slate-900 dark:text-slate-50">
+                          GHS {item.price && !isNaN(Number(item.price)) ? Number(item.price).toFixed(2) : '0.00'}
+                        </td>
                         <td className="py-3.5 text-right">
                           <span className="px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/40 text-emerald-700 dark:text-emerald-400 text-[10px] font-black uppercase rounded-full">
                             {item.status || 'active'}
@@ -235,7 +283,7 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {dataGrid.map((rep) => (
+                    {filteredDataGrid.map((rep) => (
                       <tr key={rep._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                         <td className="py-3.5 font-black uppercase text-xs tracking-wider text-amber-600 dark:text-amber-500">{rep.targetType}</td>
                         <td className="py-3.5 font-medium text-xs text-slate-600 dark:text-slate-300">{rep.feedback}</td>
@@ -249,25 +297,46 @@ export default function AdminPage() {
                 </table>
               )}
 
-              {/* GRID VIEW 4: PENDING REQUESTS (HELP CENTER LINK INTEGRATION) */}
+              {/* GRID VIEW 4: HELP CENTER LOGS */}
               {activeTab === 'requests' && (
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 text-xs font-bold uppercase">
                       <th className="pb-3">Sender Email</th>
                       <th className="pb-3">Assistance Ticket Content</th>
-                      <th className="pb-3 text-right">Status State</th>
+                      <th className="pb-3 text-right">Lifecycle Management</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {dataGrid.map((req) => (
+                    {filteredDataGrid.map((req) => (
                       <tr key={req._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                         <td className="py-3.5 font-semibold text-xs text-slate-700 dark:text-slate-400">{req.schoolMail}</td>
                         <td className="py-3.5 text-xs font-medium text-slate-600 dark:text-slate-300">{req.feedback}</td>
                         <td className="py-3.5 text-right">
-                          <span className="px-2.5 py-0.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200/30 text-amber-700 dark:text-amber-400 text-[10px] font-black uppercase rounded-full">
-                            {req.status || 'pending'}
-                          </span>
+                          {req.status === 'pending' ? (
+                            <div className="inline-flex space-x-2">
+                              <button 
+                                onClick={() => handleResolveTicket(req._id, 'resolved')}
+                                className="px-2.5 py-1 text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-100 transition"
+                              >
+                                Mark Resolved
+                              </button>
+                              <button 
+                                onClick={() => handleResolveTicket(req._id, 'rejected')}
+                                className="px-2.5 py-1 text-[10px] font-bold bg-red-50 dark:bg-red-950/20 border border-red-200 text-red-600 rounded-lg hover:bg-red-100 transition"
+                              >
+                                Decline
+                              </button>
+                            </div>
+                          ) : (
+                            <span className={`px-2.5 py-0.5 border text-[10px] font-black uppercase rounded-full ${
+                              req.status === 'resolved' 
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/40' 
+                                : 'bg-slate-50 text-slate-500 border-slate-200/40'
+                            }`}>
+                              {req.status}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -275,7 +344,7 @@ export default function AdminPage() {
                 </table>
               )}
 
-              {dataGrid.length === 0 && (
+              {filteredDataGrid.length === 0 && (
                 <p className="text-center py-8 text-slate-400 dark:text-slate-500 text-sm font-medium">
                   No tracking records logged under this sub-ledger workspace category.
                 </p>
