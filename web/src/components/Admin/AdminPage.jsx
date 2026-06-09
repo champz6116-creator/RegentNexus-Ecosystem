@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom'; 
 import { 
-  Users, Package, AlertTriangle, HelpCircle, 
-  ShieldAlert, Ban, CheckCircle2, XCircle, RefreshCw, Search
+  Users, Package, AlertTriangle, HelpCircle, Save,
+  ShieldAlert, Ban, CheckCircle2, XCircle, RefreshCw, Search, Eye
 } from 'lucide-react';
 import api from "../../api";
 
@@ -13,7 +13,11 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState(''); 
   const [loadingMetrics, setLoadingMetrics] = useState(true);
   const [loadingGrid, setLoadingGrid] = useState(false);
-  const [processingId, setProcessingId] = useState(null); // Prevents UI race conditions during administrative operations
+  const [processingId, setProcessingId] = useState(null);
+
+  // Features States (Restored stickyNotes state)
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [stickyNotes, setStickyNotes] = useState({});
 
   const fetchAdminMetrics = async () => {
     try {
@@ -31,7 +35,15 @@ export default function AdminPage() {
     try {
       setLoadingGrid(true);
       const { data } = await api.get(`/admin/data/${activeTab}`);
-      setDataGrid(Array.isArray(data) ? data : []);
+      const fallbackArray = Array.isArray(data) ? data : [];
+      setDataGrid(fallbackArray);
+
+      // Restored: Dynamically populate sticky notes map when loading users
+      if (activeTab === 'users') {
+        const notesMap = {};
+        fallbackArray.forEach(u => { notesMap[u._id] = u.adminNote || ''; });
+        setStickyNotes(notesMap);
+      }
     } catch (error) {
       console.error(`Could not fetch system directories for ${activeTab}.`, error);
       setDataGrid([]); 
@@ -66,10 +78,25 @@ export default function AdminPage() {
     }
   };
 
-  const handleReportAction = async (id, resolution) => {
+  // Restored: Submit the memo persistence string payload to your database engine
+  const handleSaveStickyNote = async (id) => {
     try {
       setProcessingId(id);
-      await api.post(`/admin/reports/${id}/resolve`, { status: resolution });
+      await api.post(`/admin/users/${id}/note`, { adminNote: stickyNotes[id] });
+      alert("Sticky note updated successfully.");
+    } catch (err) {
+      console.error("Failed to persist admin memo node.", err);
+      alert("Error saving admin note details.");
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleResolveReportCascade = async (id, actionType) => {
+    try {
+      setProcessingId(id);
+      await api.post(`/admin/reports/${id}/resolve`, { actionType });
+      setSelectedReport(null);
       await triggerGlobalSync(); 
     } catch (err) {
       console.error("Report management operation faulted.", err);
@@ -199,14 +226,14 @@ export default function AdminPage() {
           ) : (
             <div className="overflow-x-auto w-full">
               
-              {/* GRID VIEW 1: USERS LEDGER */}
+              {/* GRID VIEW 1: USERS LEDGER WITH STICKY NOTES RE-INTEGRATED */}
               {activeTab === 'users' && (
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 text-xs font-bold uppercase">
                       <th className="pb-3">Full Name</th>
-                      <th className="pb-3">Campus ID</th>
-                      <th className="pb-3">Student Email</th>
+                      <th className="pb-3">Campus ID / Mail</th>
+                      <th className="pb-3 max-w-xs">Internal Sticky Memo Notes</th>
                       <th className="pb-3 text-right">Clearance State</th>
                     </tr>
                   </thead>
@@ -214,27 +241,46 @@ export default function AdminPage() {
                     {filteredDataGrid.map((item) => (
                       <tr key={item._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                         <td className="py-3.5 font-bold">
-                          <Link 
-                            to={`/peer/${item._id}`} 
-                            className="text-emerald-600 dark:text-emerald-400 hover:underline transition-all"
-                          >
+                          <Link to={`/peer/${item._id}`} className="text-emerald-600 dark:text-emerald-400 hover:underline">
                             {item.firstName} {item.lastName}
                           </Link>
                         </td>
-                        <td className="py-3.5 font-mono text-xs text-slate-500 dark:text-slate-400">{item.schoolId || 'N/A'}</td>
-                        <td className="py-3.5 text-xs font-semibold text-slate-600 dark:text-slate-400">{item.schoolMail}</td>
+                        <td className="py-3.5">
+                          <div className="font-mono text-xs text-slate-500 dark:text-slate-400">{item.schoolId || 'N/A'}</div>
+                          <div className="text-[11px] text-slate-400">{item.schoolMail}</div>
+                        </td>
+                        {/* RESTORED COLUMN INTERACTIVITY: Input field maps straight back to state hook mapping */}
+                        <td className="py-3.5 max-w-xs">
+                          <div className="flex items-center gap-1.5 pr-4">
+                            <input
+                              type="text"
+                              value={stickyNotes[item._id] || ''}
+                              placeholder="Type private admin memo..."
+                              onChange={(e) => setStickyNotes({ ...stickyNotes, [item._id]: e.target.value })}
+                              className="w-full px-2 py-1 text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-hidden focus:border-amber-500 font-medium"
+                            />
+                            <button
+                              onClick={() => handleSaveStickyNote(item._id)}
+                              disabled={processingId === item._id}
+                              className="p-1.5 text-slate-400 hover:text-amber-600 transition"
+                              title="Save Sticky Note"
+                            >
+                              <Save size={14} />
+                            </button>
+                          </div>
+                        </td>
                         <td className="py-3.5 text-right">
                           <button 
                             onClick={() => handleToggleBan(item._id)} 
                             disabled={processingId === item._id}
-                            className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition border disabled:opacity-50 ${
+                            className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition border ${
                               !item.active 
-                                ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100' 
-                                : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 hover:bg-red-100'
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100' 
+                                : 'bg-red-50 border-red-200 text-red-600 dark:text-red-400 hover:bg-red-100'
                             }`}
                           >
                             <Ban size={13} />
-                            <span>{processingId === item._id ? 'Updating...' : (!item.active ? 'Activate / Unban' : 'Ban Account')}</span>
+                            <span>{!item.active ? 'Activate' : 'Ban User'}</span>
                           </button>
                         </td>
                       </tr>
@@ -258,10 +304,7 @@ export default function AdminPage() {
                     {filteredDataGrid.map((item) => (
                       <tr key={item._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                         <td className="py-3.5 font-bold">
-                          <Link 
-                            to={`/listings/${item._id}`} 
-                            className="text-emerald-600 dark:text-emerald-400 hover:underline transition-all"
-                          >
+                          <Link to={`/listings/${item._id}`} className="text-emerald-600 dark:text-emerald-400 hover:underline">
                             {item.title}
                           </Link>
                         </td>
@@ -270,7 +313,7 @@ export default function AdminPage() {
                           GHS {item.price && !isNaN(Number(item.price)) ? Number(item.price).toFixed(2) : '0.00'}
                         </td>
                         <td className="py-3.5 text-right">
-                          <span className="px-2.5 py-0.5 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/40 text-emerald-700 dark:text-emerald-400 text-[10px] font-black uppercase rounded-full">
+                          <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase rounded-full border border-emerald-200/40">
                             {item.status || 'active'}
                           </span>
                         </td>
@@ -286,7 +329,8 @@ export default function AdminPage() {
                   <thead>
                     <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 text-xs font-bold uppercase">
                       <th className="pb-3">Target Layer</th>
-                      <th className="pb-3">Report Details</th>
+                      <th className="pb-3">Report Context Sneak-Peek</th>
+                      <th className="pb-3">Current Status</th>
                       <th className="pb-3 text-right">Governance Execution</th>
                     </tr>
                   </thead>
@@ -294,21 +338,19 @@ export default function AdminPage() {
                     {filteredDataGrid.map((rep) => (
                       <tr key={rep._id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
                         <td className="py-3.5 font-black uppercase text-xs tracking-wider text-amber-600 dark:text-amber-500">{rep.targetType}</td>
-                        <td className="py-3.5 font-medium text-xs text-slate-600 dark:text-slate-300">{rep.feedback}</td>
-                        <td className="py-3.5 text-right space-x-2">
+                        <td className="py-3.5 font-medium text-xs text-slate-600 dark:text-slate-300 max-w-md truncate">{rep.feedback}</td>
+                        <td className="py-3.5 text-xs capitalize font-bold">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] ${rep.status === 'pending' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-slate-600'}`}>
+                            {rep.status}
+                          </span>
+                        </td>
+                        <td className="py-3.5 text-right">
                           <button 
-                            disabled={processingId === rep._id}
-                            onClick={() => handleReportAction(rep._id, 'accepted')} 
-                            className="p-1.5 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200/20 rounded-xl hover:bg-emerald-100 transition disabled:opacity-50"
+                            onClick={() => setSelectedReport(rep)} 
+                            className="inline-flex items-center space-x-1 px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition"
                           >
-                            <CheckCircle2 size={15} />
-                          </button>
-                          <button 
-                            disabled={processingId === rep._id}
-                            onClick={() => handleReportAction(rep._id, 'rejected')} 
-                            className="p-1.5 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200/20 rounded-xl hover:bg-red-100 transition disabled:opacity-50"
-                          >
-                            <XCircle size={15} />
+                            <Eye size={13} />
+                            <span>Review Incident</span>
                           </button>
                         </td>
                       </tr>
@@ -340,7 +382,7 @@ export default function AdminPage() {
                                 onClick={() => handleResolveTicket(req._id, 'resolved')}
                                 className="px-2.5 py-1 text-[10px] font-bold bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 text-emerald-600 rounded-lg hover:bg-emerald-100 transition disabled:opacity-50"
                               >
-                                {processingId === req._id ? 'Working...' : 'Mark Resolved'}
+                                {processingId === req._id ? 'Saving...' : 'Mark Resolved'}
                               </button>
                               <button 
                                 disabled={processingId === req._id}
@@ -377,6 +419,62 @@ export default function AdminPage() {
         </div>
 
       </div>
+
+      {/* REPORTS CRISIS MODAL OVERLAY BOX */}
+      {selectedReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 w-full max-w-lg shadow-xl">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <span className="text-[10px] uppercase tracking-widest font-black text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
+                  Incident Review Module
+                </span>
+                <h3 className="text-base font-black mt-1 text-slate-900 dark:text-slate-50">
+                  Target Entity Block: {selectedReport.targetType}
+                </h3>
+              </div>
+              <button onClick={() => setSelectedReport(null)} className="text-slate-400 hover:text-slate-600 text-xs font-bold">
+                ✕ Close
+              </button>
+            </div>
+
+            <div className="bg-slate-50 dark:bg-slate-950 rounded-xl p-4 mb-6 border border-slate-100 dark:border-slate-900 text-xs leading-relaxed text-slate-600 dark:text-slate-300 max-h-48 overflow-y-auto">
+              <strong>Reported Details & Evidence:</strong>
+              <p className="mt-1.5 italic">"{selectedReport.feedback}"</p>
+            </div>
+
+            <div className="flex flex-col gap-2.5">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Execute Resolution Matrix Strategy:</span>
+              
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  disabled={processingId === selectedReport._id}
+                  onClick={() => handleResolveReportCascade(selectedReport._id, 'dismiss')}
+                  className="px-4 py-2 text-xs font-bold rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50"
+                >
+                  Dismiss Report
+                </button>
+                <button
+                  disabled={processingId === selectedReport._id || selectedReport.targetType !== 'listing'}
+                  onClick={() => handleResolveReportCascade(selectedReport._id, 'delete-listing')}
+                  className="px-4 py-2 text-xs font-bold rounded-xl bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 disabled:opacity-40"
+                >
+                  Delete Listing Only
+                </button>
+              </div>
+
+              <button
+                disabled={processingId === selectedReport._id}
+                onClick={() => handleResolveReportCascade(selectedReport._id, 'ban-user-all')}
+                className="w-full px-4 py-2.5 text-xs font-extrabold rounded-xl bg-red-600 text-white hover:bg-red-700 transition flex items-center justify-center gap-1.5"
+              >
+                <Ban size={14} />
+                <span>The Nuclear Option: Ban Owner & Purge All Postings</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

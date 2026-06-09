@@ -4,6 +4,82 @@ import StandardTextInput from '../Common/StandardTextInput';
 import { Camera, ShieldCheck, AlertCircle, CheckCircle, Moon, Settings, Trash2 } from 'lucide-react';
 import api from '../../api';
 
+// ==========================================
+// INTEGRATED HELP CENTER COMPONENT
+// ==========================================
+function HelpCenterSettingsCard() {
+  const [feedback, setFeedback] = useState('');
+  const [schoolMail, setSchoolMail] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [success, setSuccess] = useState(false);
+
+  const handleSubmitTicket = async (e) => {
+    e.preventDefault();
+    if (!feedback.trim() || !schoolMail.trim()) {
+      return alert("Please fulfill all support ticket parameters before filing.");
+    }
+
+    try {
+      setSubmitting(true);
+      // Fixed endpoint route path to match our updated reports routing pipeline
+      await api.post('/reports/requests/create', { schoolMail, feedback });
+      setSuccess(true);
+      setFeedback('');
+    } catch (err) {
+      console.error("Filing help instance faulted.", err);
+      alert(err.response?.data?.message || "Could not dispatch assistance request.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-xs space-y-4">
+      <h3 className="text-base font-black flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-[18px] h-[18px] text-emerald-600"><path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" /></svg>
+        Campus Help Desk & System Support
+      </h3>
+
+      {success ? (
+        <div className="bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900/40 rounded-2xl p-4 text-center">
+          <CheckCircle className="mx-auto text-emerald-600 mb-1" size={24} />
+          <h4 className="text-xs font-bold text-emerald-800 dark:text-emerald-400">Ticket Logged Successfully</h4>
+          <p className="text-[10px] text-emerald-600 dark:text-emerald-500 mt-0.5">Campus moderators will review your case record shortly.</p>
+          <button type="button" onClick={() => setSuccess(false)} className="mt-3 text-[10px] font-bold text-emerald-700 dark:text-emerald-400 underline block mx-auto hover:opacity-80">
+            File another request
+          </button>
+        </div>
+      ) : (
+        <form onSubmit={handleSubmitTicket} className="space-y-3 max-w-md">
+          <div>
+            <label className="block text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase mb-1">Registered Institutional Email</label>
+            <StandardTextInput type="email" placeholder="e.g., student@regent.edu.gh" value={schoolMail} onChange={(e) => setSchoolMail(e.target.value)} required />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase mb-1">Issue Description / Feedback Details</label>
+            <textarea 
+              rows={4}
+              placeholder="Provide clean contextual data here describing account, listing, or layout interaction bugs..."
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-none focus:border-emerald-500 transition font-medium resize-none"
+              required
+            />
+          </div>
+
+          <button type="submit" disabled={submitting} className="w-full py-2.5 bg-slate-950 dark:bg-emerald-600 text-white hover:opacity-90 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-xs">
+            <span>{submitting ? 'Dispatching Ticket Engine...' : 'Initialize Support Ticket'}</span>
+          </button>
+        </form>
+      )}
+    </section>
+  );
+}
+
+// ==========================================
+// MAIN SETTINGS PAGE EXPORT
+// ==========================================
 export default function SettingsPage({ user, onUpdate }) {
   const [activeModalField, setActiveModalField] = useState(null);
   const [modalInputValue, setModalInputValue] = useState('');
@@ -34,7 +110,6 @@ export default function SettingsPage({ user, onUpdate }) {
     setModalError('');
   };
 
-  // Live validation engine inside the edit pop-up
   const handleModalInputChange = (val) => {
     setModalInputValue(val);
     let errorMsg = '';
@@ -60,20 +135,13 @@ export default function SettingsPage({ user, onUpdate }) {
     setLoading(true);
     setMessage('');
     try {
+      // FIX: Dynamically spread user data keys to prevent blank document overwrites
       const updatePayload = {
-        firstName: user.firstName,
-        lastName: user.lastName,
-        schoolId: user.schoolId,
-        schoolMail: user.schoolMail,
-        phone: user.phone,
-        gender: user.gender || '',
-        profileImage: user.profileImage || '' // Synced to exact Mongoose Path
+        ...user,
+        [activeModalField]: activeModalField === 'schoolMail' 
+          ? modalInputValue.trim().toLowerCase() 
+          : modalInputValue.trim()
       };
-
-      // Ensure school email is saved as lowercase formatting
-      updatePayload[activeModalField] = activeModalField === 'schoolMail' 
-        ? modalInputValue.trim().toLowerCase() 
-        : modalInputValue.trim();
 
       const { data } = await api.put(`/users/${user._id || user.id}`, updatePayload);
 
@@ -118,14 +186,10 @@ export default function SettingsPage({ user, onUpdate }) {
       if (!response.ok) throw new Error('Image upload failed.');
       const data = await response.json();
 
+      // FIX: Dynamically spread user data paths during Cloudinary payload injection
       const updatePayload = {
-        firstName: user.firstName,
-        lastName: user.lastName,
-        schoolId: user.schoolId,
-        schoolMail: user.schoolMail,
-        phone: user.phone,
-        gender: user.gender || '',
-        profileImage: data.secure_url // Synced to profileImage path
+        ...user,
+        profileImage: data.secure_url
       };
 
       const { data: updatedData } = await api.put(`/users/${user._id || user.id}`, updatePayload);
@@ -349,6 +413,9 @@ export default function SettingsPage({ user, onUpdate }) {
           </form>
         )}
       </section>
+
+      {/* HELP CENTER INTERACTION HUB */}
+      <HelpCenterSettingsCard />
 
       {/* Danger Zone */}
       <section className="bg-white dark:bg-slate-900 border border-rose-200 dark:border-rose-950/40 rounded-3xl p-6 shadow-xs space-y-3">

@@ -111,8 +111,19 @@ router.post('/register', async (req, res) => {
       await ActivityLog.create({ user: user._id, action: 'register', details: `Registered via ${mode}` });
     }
 
+    // 🌟 UPDATED: Matches structural consistency across full schema profile properties
     res.json({
-      user: { id: user._id, firstName: user.firstName, role: user.role, verified: user.verified },
+      user: { 
+        _id: user._id, 
+        firstName: user.firstName, 
+        lastName: user.lastName,
+        schoolId: user.schoolId,
+        schoolMail: user.schoolMail,
+        phone: user.phone,
+        gender: user.gender,
+        role: user.role, 
+        verified: user.verified 
+      },
       verificationPending: true,
       verificationMode: mode,
       message: mode === 'admin' 
@@ -145,9 +156,21 @@ router.post('/login', async (req, res) => {
     }
 
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '7d' });
+    
+    // 🌟 UPDATED: Appended missing keys over the response payload context safely
     res.json({ 
         token, 
-        user: { _id: user._id, firstName: user.firstName, schoolMail: user.schoolMail, role: user.role, verified: user.verified }, 
+        user: { 
+          _id: user._id, 
+          firstName: user.firstName, 
+          lastName: user.lastName,
+          schoolId: user.schoolId,
+          schoolMail: user.schoolMail, 
+          phone: user.phone,
+          gender: user.gender,
+          role: user.role, 
+          verified: user.verified 
+        }, 
         message: 'Logged in successfully' 
     });
   } catch (err) {
@@ -190,7 +213,22 @@ router.post('/confirm-verification', async (req, res) => {
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '7d' });
     if (ActivityLog) await ActivityLog.create({ user: user._id, action: 'confirm-verification', details: 'Verified' });
 
-    res.json({ token, user: { _id: user._id, firstName: user.firstName, role: user.role, verified: true }, message: 'Verified successfully' });
+    // 🌟 UPDATED: Extended verification object to match the user payload requirements exactly
+    res.json({ 
+      token, 
+      user: { 
+        _id: user._id, 
+        firstName: user.firstName, 
+        lastName: user.lastName,
+        schoolId: user.schoolId,
+        schoolMail: user.schoolMail,
+        phone: user.phone,
+        gender: user.gender,
+        role: user.role, 
+        verified: true 
+      }, 
+      message: 'Verified successfully' 
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import api from './api'; // Ensure your Axios config instance is imported to hit the API
 
 // Auth Components
 import AuthPage from './components/Auth/AuthPage';
@@ -42,32 +43,61 @@ function ProtectedLayout({ user, onSignOut }) {
   );
 }
 
-function App() {
+export default function App() {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
 
+  // 🌟 HELPER FUNCTION: Maps database keys smoothly to UI parameters
+  const normalizeUserData = (rawUser) => {
+    if (!rawUser) return null;
+    return {
+      ...rawUser,
+      schoolId: rawUser.schoolId || rawUser.schoolID || '',
+      schoolMail: rawUser.schoolMail || rawUser.email || '',
+      phone: rawUser.phone || rawUser.phoneNumber || ''
+    };
+  };
+
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    const storedUser = localStorage.getItem('user');
-    if (storedToken && storedUser) {
-      try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-      } catch (error) {
-        console.error('Failed to parse user session data:', error);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
+    const fetchFullUserSession = async () => {
+      const storedToken = localStorage.getItem('token');
+      const storedUser = localStorage.getItem('user');
+      
+      if (storedToken && storedUser) {
+        try {
+          setToken(storedToken);
+          const parsedUser = JSON.parse(storedUser);
+          const userId = parsedUser._id || parsedUser.id;
+
+          // 🌟 FORCE-FETCH LIVE DATA TO PREVENT EMPTY PROFILES ON REBOOT
+          const { data } = await api.get(`/users/${userId}`, {
+            headers: { Authorization: `Bearer ${storedToken}` }
+          });
+          
+          const fullUserData = data.user || data || parsedUser; 
+          const cleanUser = normalizeUserData(fullUserData);
+          
+          setUser(cleanUser);
+          localStorage.setItem('user', JSON.stringify(cleanUser)); // Update cache
+        } catch (error) {
+          console.error('API profile sync failed on startup, using local storage cache:', error);
+          // Safe fallback if local network or server runtime is offline
+          setUser(normalizeUserData(JSON.parse(storedUser)));
+        }
       }
-    }
-    setLoadingAuth(false);
+      setLoadingAuth(false);
+    };
+
+    fetchFullUserSession();
   }, []);
 
   const handleSignIn = (newToken, newUser) => {
+    const cleanUser = normalizeUserData(newUser);
     localStorage.setItem('token', newToken);
-    localStorage.setItem('user', JSON.stringify(newUser));
+    localStorage.setItem('user', JSON.stringify(cleanUser));
     setToken(newToken);
-    setUser(newUser);
+    setUser(cleanUser);
   };
 
   const handleSignOut = () => {
@@ -80,8 +110,9 @@ function App() {
   };
 
   const handleUserUpdate = (updatedUser) => {
-    localStorage.setItem('user', JSON.stringify(updatedUser));
-    setUser(updatedUser);
+    const cleanUser = normalizeUserData(updatedUser);
+    localStorage.setItem('user', JSON.stringify(cleanUser));
+    setUser(cleanUser);
   };
 
   if (loadingAuth) {
@@ -119,7 +150,7 @@ function App() {
           <Route path="/cart" element={<CartPage user={user} />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           
-          {/* Linked updates directly to global state */}
+          {/* Linked updates directly to global state hooks */}
           <Route path="/profile" element={<ProfilePage user={user} onUpdateUser={handleUserUpdate} />} />
           <Route path="/settings" element={<SettingsPage user={user} onUpdate={handleUserUpdate} />} />
           
@@ -140,5 +171,3 @@ function App() {
     </BrowserRouter>
   );
 }
-
-export default App;
