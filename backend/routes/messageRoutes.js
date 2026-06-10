@@ -5,7 +5,9 @@ const Report = require('../models/Report');
 const { verifyToken } = require('../middleware/auth');
 const mongoose = require('mongoose');
 
-// GET /api/messages/conversations
+// =========================================================================
+// 1. GET /api/messages/conversations
+// =========================================================================
 router.get('/conversations', verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
@@ -25,8 +27,8 @@ router.get('/conversations', verifyToken, async (req, res) => {
           _id: {
             $cond: [
               { $gt: ['$sender', '$recipient'] },
-              { s: '$sender', r: '$recipient', item: '$contextItem' },
-              { s: '$recipient', r: '$sender', item: '$contextItem' }
+              { s: '$sender', r: '$recipient' },
+              { s: '$recipient', r: '$sender' }
             ]
           },
           lastMessage: { $first: '$$ROOT' }
@@ -45,7 +47,6 @@ router.get('/conversations', verifyToken, async (req, res) => {
       const isSenderMe = c.lastMessage.sender && c.lastMessage.sender._id.toString() === userId.toString();
       const participant = isSenderMe ? c.lastMessage.recipient : c.lastMessage.sender;
       
-      // Fallback fallback variables if system message has no explicit participant references
       return {
         _id: participant ? participant._id.toString() : 'system',
         participant: participant ? {
@@ -54,24 +55,30 @@ router.get('/conversations', verifyToken, async (req, res) => {
           lastName: participant.lastName,
           schoolId: participant.schoolId
         } : { firstName: "System", lastName: "Notice" },
-        contextItem: c.lastMessage.contextItem,
+        contextItem: c.lastMessage.contextItem || 'General Exchange',
         itemId: c.lastMessage.itemId,
         text: c.lastMessage.text,
         timestamp: c.lastMessage.timestamp
       };
     }).filter(Boolean);
 
-    res.json(formatInbox);
+    return res.json(formatInbox);
   } catch (err) {
-    res.status(500).json({ message: 'Error retrieving conversations', error: err.message });
+    return res.status(500).json({ message: 'Error retrieving conversations', error: err.message });
   }
 });
 
-// GET /api/messages/channel/:chatId
+// =========================================================================
+// 2. GET /api/messages/channel/:chatId
+// =========================================================================
 router.get('/channel/:chatId', verifyToken, async (req, res) => {
   try {
     const userId = req.userId;
     const targetPeerId = req.params.chatId;
+
+    if (targetPeerId === 'system' || targetPeerId === 'new_channel_context' || !mongoose.Types.ObjectId.isValid(targetPeerId)) {
+      return res.json([]);
+    }
 
     const chatHistory = await Message.find({
       $or: [
@@ -93,13 +100,17 @@ router.get('/channel/:chatId', verifyToken, async (req, res) => {
       timestamp: m.timestamp
     }));
 
-    res.json(formatted);
+    // CRITICAL FIX: Deliver response payload back to client channel stream
+    return res.json(formatted);
+
   } catch (err) {
-    res.status(500).json({ message: 'Error loading messages', error: err.message });
+    return res.status(500).json({ message: 'Error loading messages', error: err.message });
   }
 });
 
-// POST /api/messages/initialize
+// =========================================================================
+// 3. POST /api/messages/initialize
+// =========================================================================
 router.post('/initialize', verifyToken, async (req, res) => {
   try {
     const { text, recipientId, contextItem, itemId } = req.body;
@@ -119,80 +130,95 @@ router.post('/initialize', verifyToken, async (req, res) => {
     });
 
     const savedMsg = await newMessage.save();
-    const populated = await Message.populate(savedMsg, {
-      path: 'sender recipient',
-      select: 'firstName lastName'
-    });
 
+    // Clean payload representation for external recipient delivery
     const output = {
       _id: savedMsg._id.toString(),
       text: savedMsg.text,
-      sender: 'me',
+      sender: senderId.toString(),
+      recipient: recipientId.toString(),
       contextItem: savedMsg.contextItem,
       itemId: savedMsg.itemId,
       isSystemAction: false,
-      timestamp: savedMsg.timestamp,
-      message: 'Message sent successfully'
+      timestamp: savedMsg.timestamp
     };
 
-    if (global.io) {
-      global.io.to(recipientId).emit('receive_message', { ...output, sender: senderId.toString() });
-      global.io.to(senderId).emit('receive_message', output);
+    // Safe Engine Resolve: Broadcasts live socket pulse to the active peer room boundary
+    const io = req.app.get('io') || global.io;
+    if (io) {
+      io.to(recipientId.toString().trim()).emit('receive_message', output);
     }
 
-    res.status(201).json(output);
+    // Return explicit state parameters directly to the author to instantly align UI feeds
+    return res.status(201).json({ 
+      ...output, 
+      conversationId: recipientId.toString(), 
+      sender: 'me', 
+      message: 'Message sent successfully' 
+    });
   } catch (err) {
     console.error('Error initializing message:', err);
-    res.status(500).json({ message: 'Error saving message', error: err.message });
+    return res.status(500).json({ message: 'Error saving message', error: err.message });
   }
 });
 
-// POST /api/messages/channel/:chatId/send
+// =========================================================================
+// 4. POST /api/messages/channel/:chatId/send
+// =========================================================================
 router.post('/channel/:chatId/send', verifyToken, async (req, res) => {
   try {
     const { text, contextItem, itemId } = req.body;
     const senderId = req.userId;
-    const chatId = req.params.chatId;
+    const recipientId = req.params.chatId; 
 
-    if (!text || !chatId) {
-      return res.status(400).json({ message: 'Message text and chat ID are required' });
+    if (!text || !recipientId) {
+      return res.status(400).json({ message: 'Message text and target recipient identifier are required' });
     }
 
     const newMessage = new Message({
       sender: senderId,
-      recipient: chatId,
+      recipient: recipientId, 
+      text: text.trim(),
       contextItem: contextItem || 'General Exchange',
       itemId: itemId || null,
-      text: text.trim(),
       timestamp: new Date()
     });
 
     const savedMsg = await newMessage.save();
 
+    // Standardized network serialization object
     const output = {
       _id: savedMsg._id.toString(),
       text: savedMsg.text,
-      sender: 'me',
+      sender: senderId.toString(),
+      recipient: recipientId.toString(),
       contextItem: savedMsg.contextItem,
       itemId: savedMsg.itemId,
       isSystemAction: false,
-      timestamp: savedMsg.timestamp,
-      message: 'Message sent successfully'
+      timestamp: savedMsg.timestamp
     };
 
-    if (global.io) {
-      global.io.to(chatId).emit('receive_message', { ...output, sender: senderId.toString() });
-      global.io.to(senderId).emit('receive_message', output);
+    // Safe Engine Resolve: Routes the data stream out to the remote recipient
+    const io = req.app.get('io') || global.io;
+    if (io) {
+      io.to(recipientId.toString().trim()).emit('receive_message', output);
     }
 
-    res.status(201).json(output);
+    // Map sender explicitly to 'me' to prevent alignment shift loops in local client arrays
+    return res.status(201).json({
+      ...output,
+      sender: 'me'
+    });
+
   } catch (err) {
-    console.error('Error sending message:', err);
-    res.status(500).json({ message: 'Error saving message', error: err.message });
+    console.error('❌ Critical transmission log error encountered:', err);
+    return res.status(500).json({ message: 'Error saving message', error: err.message });
   }
 });
 
-// NEW PIPELINE: POST /api/messages/report
+// =========================================================================
+// 5. POST /api/messages/report
+// =========================================================================
 router.post('/report', verifyToken, async (req, res) => {
   try {
     const { reportedUserId, itemId, reason } = req.body;
@@ -226,8 +252,9 @@ router.post('/report', verifyToken, async (req, res) => {
       timestamp: reportNotice.timestamp
     };
 
-    if (global.io) {
-      global.io.to(req.userId).emit('receive_message', output);
+    const io = req.app.get('io') || global.io;
+    if (io) {
+      io.to(req.userId.toString().trim()).emit('receive_message', output);
     }
 
     return res.status(201).json({ message: 'User reported cleanly.' });

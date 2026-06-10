@@ -8,7 +8,7 @@ const http = require('http');
 const cors = require('cors');
 const mongoose = require('mongoose');
 const socketio = require('socket.io');
-const path = require('path'); // 🌟 ADDED: For serving static assets
+const path = require('path'); 
 const authRoutes = require('./routes/auth');
 const itemRoutes = require('./routes/items');
 const userRoutes = require('./routes/users');
@@ -20,30 +20,35 @@ const { verifyToken } = require('./middleware/auth');
 
 const app = express();
 const server = http.createServer(app);
-const io = socketio(server, { cors: { origin: '*', methods: ['GET', 'POST'] } });
 
-global.io = io;
+// 🌟 Single Source of Truth for Security Operations
+const ALLOWED_ORIGIN = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-// 🌟 FIX FOR STEP 1: Relaxed CORS array for easy production pairing
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allows server-to-server requests or any campus domain variant seamlessly
-    if (!origin || origin.includes('localhost') || origin.includes('onrender.com')) {
-      callback(null, true);
-    } else {
-      callback(new Error('Access denied by security policy. Origin not allowed: ' + origin));
-    }
+// Attached with secure dynamic origin matching for credentialed WebSockets handshakes
+const io = socketio(server, { 
+  cors: { 
+    origin: ALLOWED_ORIGIN, 
+    methods: ['GET', 'POST'],
+    credentials: true 
   },
+  transports: ['polling', 'websocket']
+});
+
+// DUAL-LAYER BRIDGE: Ensures structural compatibility across all backend architecture paradigms
+global.io = io;
+app.set('io', io);
+
+// Express Middleware Layer CORS Synchronization
+app.use(cors({
+  origin: ALLOWED_ORIGIN,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
 }));
 
-// Ensure global json interceptors handle sub-resource routes flawlessly
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Global catch-all system node tracker to log rogue 404 paths
 app.use((req, res, next) => {
   console.log(`📡 Inbound Request Logged -> Method: ${req.method} | Path: ${req.url}`);
   next();
@@ -58,49 +63,54 @@ app.use('/api/admin', verifyToken, adminRoutes);
 app.use('/api/transactions', verifyToken, transactionRoutes);
 app.use('/api/messages', messageRoutes);
 
-// =========================================================================
-// 🌟 FIX FOR STEP 2: MOUNT FRONTEND STATIC ASSET ROUTING
-// =========================================================================
-// Serves your built assets from your build folder
+// Frontend static asset serving
 app.use(express.static(path.join(__dirname, '../web/dist')));
 
-// The universal catch-all fallback route: sends unknown traffic to index.html
 app.get('*', (req, res) => {
   res.sendFile(path.resolve(__dirname, '../web', 'dist', 'index.html'));
 });
 
+// =========================================================================
+// 🌟 SOCKET.IO ENGINE CONFIGURATION (ISOLATED PEER COMMUNICATIONS PIPELINE)
+// =========================================================================
 io.on('connection', (socket) => {
-  console.log('socket connected', socket.id);
-  socket.on('chat message', (msg) => {
-    io.emit('chat message', msg);
+  console.log(`🔌 Socket Connected: ${socket.id}`);
+
+  // Secure identity mapping using clean type casting wrappers
+  socket.on('join_room', (userId) => {
+    if (userId) {
+      const cleanUserId = userId.toString().trim();
+      socket.join(cleanUserId);
+      console.log(`👤 User [${cleanUserId}] securely joined their private communication room.`);
+    }
   });
-  socket.on('disconnect', () => console.log('socket disconnected', socket.id));
+
+  socket.on('disconnect', () => {
+    console.log(`❌ Socket Disconnected: ${socket.id}`);
+  });
 });
 
-// Start function logic
 const start = async () => {
-    try {
-        await mongoose.connect(process.env.MONGO_URI, {
-            family: 4, 
-            serverSelectionTimeoutMS: 30000, 
-            heartbeatFrequencyMS: 10000     
-        });
-        console.log('✅ Mongo connected successfully');
-        
-        const PORT = process.env.PORT || 5000;
-        server.listen(PORT, '0.0.0.0', () => {
-            console.log(`🚀 Server running on port ${PORT}`);
-        });
-    } catch (error) {
-        console.error('❌ Connection failed:', error.message);
-    }
+  try {
+    await mongoose.connect(process.env.MONGO_URI, {
+      family: 4, 
+      serverSelectionTimeoutMS: 30000, 
+      heartbeatFrequencyMS: 10000     
+    });
+    console.log('✅ Mongo connected successfully');
+    
+    const PORT = process.env.PORT || 5000;
+    server.listen(PORT, '0.0.0.0', () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('❌ Connection failed:', error.message);
+  }
 };
 
 start();
 
-// =========================================================================
-// RENDER LIVE ANTI-SLEEP CHRONO SHIELD (Keeps container runtime hot)
-// =========================================================================
+// Container runtime keep-alive chronoshield
 setInterval(() => {
   const https = require('https');
   

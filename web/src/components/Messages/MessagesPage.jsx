@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import { Send, User, MessageSquare, Inbox, ArrowLeft, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { Send, User, MessageSquare, Inbox, ArrowLeft, ShieldAlert, AlertTriangle, X } from 'lucide-react';
 import io from 'socket.io-client';
 import api from '../../api';
 
@@ -12,7 +12,7 @@ export default function MessagesPage({ user }) {
   const recipientId = searchParams.get('recipientId') || searchParams.get('chatWith');
   const itemName = searchParams.get('itemName');
   const rawSellerName = searchParams.get('sellerName');
-  const itemId = searchParams.get('itemId'); // 🌟 Context item ID tracking extraction
+  const itemId = searchParams.get('itemId'); 
 
   // --- Core State Management Layers ---
   const [conversations, setConversations] = useState([]);
@@ -23,9 +23,22 @@ export default function MessagesPage({ user }) {
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [socket, setSocket] = useState(null);
 
+  // --- Custom Moderation Report Modal State ---
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('');
+  const [submittingReport, setSubmittingReport] = useState(false);
+
   // Responsive state sync
   const [mobileShowChat, setMobileShowChat] = useState(!!recipientId);
   const messagesEndRef = useRef(null);
+
+  // PERSISTENCE SHIELD: Protects socket lifecycle against double-mount re-instantiation drops
+  const socketRef = useRef(null);
+  const activeChatRef = useRef(activeChat);
+  
+  useEffect(() => {
+    activeChatRef.current = activeChat;
+  }, [activeChat]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -35,34 +48,103 @@ export default function MessagesPage({ user }) {
     if (messages.length > 0) scrollToBottom();
   }, [messages]);
 
-// --- 🌟 SETUP REAL-TIME SOCKET CONNECTION ---
+  // --- Helper Function: Bulletproof Array De-duplication ---
+  const deduplicateMessages = (msgArray) => {
+    return msgArray.filter((msg, index, self) => 
+      msg._id ? self.findIndex(m => m._id === msg._id) === index : true
+    );
+  };
+
+  // --- 🌟 SETUP REAL-TIME SOCKET CONNECTION (HYBRID LIVE lifecycle) ---
   useEffect(() => {
-    // 🌟 Check the address bar to connect cleanly locally or on Render
+    if (!user || !user._id) return; 
+
     const targetSocketUrl = window.location.hostname === 'localhost' 
       ? 'http://localhost:5000' 
       : 'https://regent-nexus-backend.onrender.com';
 
-    const socketInstance = io(targetSocketUrl, {
-      transports: ['websocket'], // Forces direct websocket connection, bypassing 400 bad requests
-      withCredentials: true
-    });
-    
+    // Instance lock: isolates socket pipeline safely during component lifecycle
+    if (!socketRef.current) {
+      socketRef.current = io(targetSocketUrl, {
+        withCredentials: true,
+        transports: ['polling', 'websocket']
+      });
+      
+      socketRef.current.emit('join_room', user._id.toString());
+      console.log(`🔌 Initialized fresh socket connection for user: ${user._id}`);
+    }
+
+    const socketInstance = socketRef.current;
     setSocket(socketInstance);
 
-    // Dynamic stream listener
+    // Dynamic stream safety check: drop matching hooks before re-binding
+    socketInstance.off('receive_message');
+
     socketInstance.on('receive_message', (msg) => {
-      setMessages((prev) => {
-        if (prev.some((m) => m._id === msg._id)) return prev;
-        return [...prev, msg];
+      const msgSenderId = (msg.sender?._id || msg.sender || '').toString();
+      const msgRecipientId = (msg.recipient?._id || msg.recipient || '').toString();
+      const currentUserId = user._id.toString();
+
+      if (msgSenderId !== currentUserId && msgRecipientId !== currentUserId) {
+        return; 
+      }
+
+      const targetPeerId = msgSenderId === currentUserId ? msgRecipientId : msgSenderId;
+      
+      const currentActiveChat = activeChatRef.current;
+      const activeChatTargetId = currentActiveChat?.participant?._id?.toString() || currentActiveChat?._id?.toString();
+
+      if (activeChatTargetId === targetPeerId || (currentActiveChat?._id === 'new_channel_context' && currentActiveChat?.participant?._id === targetPeerId)) {
+        setMessages((prev) => {
+          const normalizedMsg = {
+            ...msg,
+            sender: msg.isSystemAction ? 'system' : (msgSenderId === currentUserId ? 'me' : msgSenderId)
+          };
+          return deduplicateMessages([...prev, normalizedMsg]);
+        });
+      }
+
+      setConversations((prev) => {
+        const hasChatInSidebar = prev.some(c => c.participant?._id?.toString() === targetPeerId);
+
+        if (!hasChatInSidebar && msgSenderId !== currentUserId) {
+          const dynamicNewConversation = {
+            _id: targetPeerId,
+            participant: msg.sender && typeof msg.sender === 'object' ? msg.sender : {
+              _id: targetPeerId,
+              firstName: "New",
+              lastName: "Trader"
+            },
+            contextItem: msg.contextItem || 'General Exchange',
+            itemId: msg.itemId || null,
+            text: msg.text,
+            timestamp: msg.timestamp
+          };
+          return [dynamicNewConversation, ...prev];
+        }
+
+        const existingChat = prev.find(c => c.participant?._id?.toString() === targetPeerId);
+        if (existingChat) {
+          const updatedChat = { ...existingChat, text: msg.text, timestamp: msg.timestamp };
+          return [updatedChat, ...prev.filter(c => c.participant?._id?.toString() !== targetPeerId)];
+        }
+        return prev;
       });
     });
 
+    // LEAKPROOF CLEANUP PIPELINE: Fired cleanly on unmount or user shift
     return () => {
-      socketInstance.disconnect();
+      socketInstance.off('receive_message');
+      
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null; // Clear pointer context entirely
+        console.log("🔌 Component unmounted/shifted: Closed socket safely to protect server thread allocations.");
+      }
     };
-  }, []);
+  }, [user?._id]); 
 
-  // --- 🌟 WHATSAPP DATE & TIME FORMATTERS ---
+  // --- DATE & TIME FORMATTERS ---
   const formatTime = (dateStr) => {
     if (!dateStr) return 'Sent';
     return new Date(dateStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -81,25 +163,29 @@ export default function MessagesPage({ user }) {
     return d.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
   };
 
-  // --- 🌟 DISPATCH REQUIREMENT C: USER REPORT ---
-  const handleReportUser = async () => {
-    if (!activeChat) return;
-    const reason = window.prompt("Please enter the reason for flagging this interaction context:");
-    if (reason === null) return; // User cancelled
+  const handleReportUserSubmit = async (e) => {
+    if (e) e.preventDefault();
+    if (!activeChat || !reportReason.trim()) return;
 
     try {
+      setSubmittingReport(true);
       await api.post('/messages/report', {
         reportedUserId: activeChat.participant?._id,
         itemId: activeChat.itemId || itemId,
-        reason: reason.trim() || 'Flagged via chat interface interface.'
+        reason: reportReason.trim()
       });
+      
       alert('Conversation flagged cleanly for safety evaluation.');
+      setReportReason('');
+      setShowReportModal(false);
     } catch (err) {
       console.error('Failed to submit moderation report logs:', err);
+    } finally {
+      setSubmittingReport(false);
     }
   };
 
-  // --- Hook 1: Core Inbox Sync Pipeline ---
+  // --- Inbox Channel Syncer ---
   useEffect(() => {
     const fetchInboxChannels = async () => {
       const parsedSellerName = rawSellerName && rawSellerName !== 'undefined' 
@@ -132,7 +218,7 @@ export default function MessagesPage({ user }) {
             setActiveChat({
               _id: 'new_channel_context',
               participant: { _id: recipientId, firstName: fName, lastName: lName },
-              contextItem: contextItemValue || 'Marketplace Item',
+              contextItem: contextItemValue || 'General Exchange',
               itemId: itemId || null
             });
             setMessages([]);
@@ -152,28 +238,30 @@ export default function MessagesPage({ user }) {
     fetchInboxChannels();
   }, [recipientId, itemName, rawSellerName, itemId]);
 
-  // --- Hook 2: Direct Feed Message Log Updates ---
+  // --- Message Log Stream Hook ---
   useEffect(() => {
     const fetchMessageLogs = async () => {
-      if (!activeChat || activeChat._id === 'new_channel_context') {
+      if (!activeChat || !activeChat._id || activeChat._id === 'new_channel_context' || activeChat._id === 'system') {
+        setMessages([]);
         return; 
       }
       try {
         setLoadingMessages(true);
         const { data } = await api.get(`/messages/channel/${activeChat._id}`);
-        setMessages(data?.messages || data || []);
+        const rawHistory = data?.messages || data || [];
+        setMessages(deduplicateMessages(rawHistory));
       } catch (err) {
         console.error('Failed to load historic channel transmission logs:', err);
+        setMessages([]);
       } finally {
-        loadingMessages && setLoadingMessages(false);
+        setLoadingMessages(false);
       }
     };
 
     fetchMessageLogs();
   }, [activeChat?._id]);
 
-  // Check if active channel item context contains deactivated notices
-  const isChannelLocked = messages.some(m => m.isSystemAction && m.text.includes('no longer active'));
+  const isChannelLocked = messages.some(m => m.isSystemAction && m.text && m.text.includes('no longer active'));
 
   // --- Dispatch Transmission Handlers ---
   const handleSendMessage = async (e) => {
@@ -194,30 +282,48 @@ export default function MessagesPage({ user }) {
         const { data } = await api.post('/messages/initialize', payload);
         setNewMessage('');
         
-        const finalizedChatId = data?.message?.conversationId || data?.conversation?._id || data?.chatId || activeChat.participant._id;
+        const finalizedChatId = data?.conversationId || data?._id || activeChat.participant._id;
         
         const structuralActiveChat = {
-          ...activeChat,
-          _id: finalizedChatId
+          _id: finalizedChatId,
+          participant: activeChat.participant,
+          contextItem: activeChat.contextItem,
+          itemId: activeChat.itemId,
+          text: currentTypedString,
+          timestamp: new Date().toISOString()
         };
 
+        const incomingMsg = data && data._id ? data : data.message;
+
         setActiveChat(structuralActiveChat);
-        setConversations(prev => [structuralActiveChat, ...prev.filter(c => c._id !== 'new_channel_context')]);
-        
-        const incomingMsg = data?.message && typeof data.message === 'object' ? data.message : data;
-        setMessages([incomingMsg]);
+
+        setConversations(prev => [
+          structuralActiveChat, 
+          ...prev.filter(c => c._id !== 'new_channel_context' && c.participant?._id !== activeChat.participant._id)
+        ]);
+        setMessages([{ ...incomingMsg, sender: 'me' }]);
 
       } else {
         const { data } = await api.post(`/messages/channel/${activeChat._id}/send`, {
           text: currentTypedString,
-          recipientId: activeChat.participant._id,
           contextItem: activeChat.contextItem,
           itemId: activeChat.itemId || itemId
         });
 
-        const injectedMsg = data?.message || data;
-        setMessages(prev => [...prev, injectedMsg]);
+        const injectedMsg = (data && data._id) ? data : (data?.message && typeof data.message === 'object' ? data.message : data);
+        
+        setMessages(prev => deduplicateMessages([...prev, { ...injectedMsg, sender: 'me' }]));
         setNewMessage('');
+
+        setConversations(prev => {
+          const filtered = prev.filter(c => c._id !== activeChat._id);
+          const updatedChat = {
+            ...activeChat,
+            text: currentTypedString,
+            timestamp: new Date().toISOString()
+          };
+          return [updatedChat, ...filtered];
+        });
       }
     } catch (err) {
       console.error('Failed to transmit chat message:', err);
@@ -231,9 +337,9 @@ export default function MessagesPage({ user }) {
 
   return (
     <div className="w-full h-[calc(100vh-100px)] bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-2 sm:p-4 transition-colors duration-200">
-      <div className="max-w-6xl mx-auto h-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl flex overflow-hidden shadow-2xs relative">
+      <div className="max-w-6xl mx-auto h-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl flex overflow-hidden shadow-xs relative">
 
-        {/* --- Sidebar Channel Threads Matrix --- */}
+        {/* Sidebar Panel */}
         <aside className={`w-full md:w-1/3 border-r border-slate-200 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-950/20 ${mobileShowChat ? 'hidden md:flex' : 'flex'}`}>
           <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
             <h2 className="font-black text-sm tracking-tight flex items-center gap-2">
@@ -263,7 +369,7 @@ export default function MessagesPage({ user }) {
                     }}
                     className={`w-full text-left p-3 rounded-2xl flex items-center space-x-3 transition font-bold ${
                       isSelected
-                        ? 'bg-emerald-600 text-white shadow-2xs'
+                        ? 'bg-emerald-600 text-white shadow-xs'
                         : 'hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-800 dark:text-slate-200'
                     }`}
                   >
@@ -271,10 +377,22 @@ export default function MessagesPage({ user }) {
                       <User size={15} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs truncate">{chat.participant?.firstName} {chat.participant?.lastName}</p>
+                      <div className="flex justify-between items-baseline">
+                        <p className="text-xs truncate max-w-[70%]">{chat.participant?.firstName} {chat.participant?.lastName}</p>
+                        {chat.timestamp && (
+                          <span className={`text-[8px] font-medium shrink-0 ${isSelected ? 'text-emerald-200' : 'text-slate-400'}`}>
+                            {formatTime(chat.timestamp)}
+                          </span>
+                        )}
+                      </div>
                       <p className={`text-[10px] font-medium truncate mt-0.5 ${isSelected ? 'text-emerald-100' : 'text-emerald-600 dark:text-emerald-400'}`}>
                         {chat.contextItem || 'General Exchange'}
                       </p>
+                      {chat.text && (
+                        <p className={`text-[10px] font-medium truncate mt-0.5 ${isSelected ? 'text-emerald-50/80' : 'text-slate-400 dark:text-slate-500'}`}>
+                          {chat.text}
+                        </p>
+                      )}
                     </div>
                   </button>
                 );
@@ -283,16 +401,15 @@ export default function MessagesPage({ user }) {
           </div>
         </aside>
 
-        {/* --- Main Chat Dialog Stream Workspace Window --- */}
-        <section className={`flex-1 flex flex-col bg-white dark:bg-slate-900 justify-between ${mobileShowChat ? 'flex' : 'hidden md:flex'}`}>
+        {/* Chat Window Workspace */}
+        <section className={`flex-1 flex flex-col bg-white dark:bg-slate-900 justify-between relative ${mobileShowChat ? 'flex' : 'hidden md:flex'}`}>
           {activeChat ? (
             <>
-              {/* Header Profile Info Meta Bar (With Requirement C Report Button) */}
               <header className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/30 dark:bg-slate-950/10">
                 <div className="flex items-center gap-3 min-w-0">
                   <button
                     onClick={handleCloseChatViewOnMobile}
-                    className="md:hidden p-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-white bg-slate-100 dark:bg-slate-800 rounded-xl"
+                    className="md:hidden p-1.5 text-slate-500 hover:text-slate-900 dark:hover:white bg-slate-100 dark:bg-slate-800 rounded-xl"
                   >
                     <ArrowLeft size={16} />
                   </button>
@@ -310,9 +427,8 @@ export default function MessagesPage({ user }) {
                   </div>
                 </div>
 
-                {/* 🚨 Requirement C: Global Standard Report Utility Element */}
                 <button 
-                  onClick={handleReportUser}
+                  onClick={() => setShowReportModal(true)}
                   className="flex flex-col items-center justify-center p-2 text-rose-500 hover:text-rose-600 dark:text-rose-400/90 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/20 transition shrink-0"
                   title="Report Abuse"
                 >
@@ -321,10 +437,7 @@ export default function MessagesPage({ user }) {
                 </button>
               </header>
 
-              {/* Message History Feed Container */}
               <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50/20 dark:bg-slate-950/5">
-                
-                {/* 💼 Requirement A Contextual Tag Display Bubble at Center Top */}
                 {activeChat.contextItem && (
                   <div className="flex justify-center my-2">
                     <span className="bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full shadow-xs border border-amber-200/40">
@@ -333,68 +446,68 @@ export default function MessagesPage({ user }) {
                   </div>
                 )}
 
-                {messages.map((msg, idx) => {
-                  const msgSenderId = msg.senderId || msg.sender;
-                  const isMe = msgSenderId === 'me' || (user?._id && msgSenderId === user._id);
-                  
-                  // Evaluate continuous date change separators (WhatsApp Logic)
-                  const showDateLabel = idx === 0 || formatDateLabel(messages[idx - 1].timestamp || messages[idx - 1].createdAt) !== formatDateLabel(msg.timestamp || msg.createdAt);
+                {loadingMessages ? (
+                  <div className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest py-4">Loading interaction stream...</div>
+                ) : (
+                  messages.map((msg, idx) => {
+                    const msgSenderId = msg.senderId || msg.sender;
+                    const isMe = msgSenderId === 'me' || (user?._id && msgSenderId === user._id);
+                    const showDateLabel = idx === 0 || formatDateLabel(messages[idx - 1].timestamp || messages[idx - 1].createdAt) !== formatDateLabel(msg.timestamp || msg.createdAt);
 
-                  return (
-                    <React.Fragment key={msg._id || idx}>
-                      {showDateLabel && (
-                        <div className="flex justify-center my-3">
-                          <span className="bg-slate-200/80 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-md shadow-xs">
-                            {formatDateLabel(msg.timestamp || msg.createdAt)}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Display System Warning Alert Bubble vs Standalone Message Styles */}
-                      {msg.isSystemAction ? (
-                        <div className="flex justify-center my-2">
-                          <div className={`max-w-[85%] rounded-xl px-4 py-2 text-xs font-bold text-center border ${
-                            msg.isReportNotice 
-                              ? 'bg-rose-50 text-rose-700 border-rose-100 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30' 
-                              : 'bg-emerald-50 text-emerald-800 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30'
-                          }`}>
-                            {msg.text}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[75%] sm:max-w-[70%] rounded-2xl p-3 text-xs font-semibold shadow-2xs leading-relaxed ${
-                            isMe
-                              ? 'bg-slate-900 text-white rounded-br-none dark:bg-slate-100 dark:text-slate-900'
-                              : 'bg-white text-slate-800 border border-slate-150 dark:bg-slate-800 dark:text-slate-50 dark:border-slate-700/60 rounded-bl-none'
-                          }`}>
-                            <p className="break-words whitespace-pre-wrap">{msg.text}</p>
-                            <span className={`block text-[8px] mt-1 text-right font-medium ${isMe ? 'text-slate-400 dark:text-slate-500' : 'text-slate-400'}`}>
-                              {formatTime(msg.timestamp || msg.createdAt)}
+                    return (
+                      <React.Fragment key={msg._id || idx}>
+                        {showDateLabel && (
+                          <div className="flex justify-center my-3">
+                            <span className="bg-slate-200/80 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] font-extrabold uppercase tracking-widest px-2.5 py-0.5 rounded-md shadow-xs">
+                              {formatDateLabel(msg.timestamp || msg.createdAt)}
                             </span>
                           </div>
-                        </div>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                        )}
+
+                        {msg.isSystemAction ? (
+                          <div className="flex justify-center my-2">
+                            <div className={`max-w-[85%] rounded-xl px-4 py-2 text-xs font-bold text-center border ${
+                              msg.isReportNotice 
+                                ? 'bg-rose-50 text-rose-700 border-rose-100 dark:bg-rose-950/20 dark:text-rose-400 dark:border-rose-900/30' 
+                                : 'bg-emerald-50 text-emerald-800 border-emerald-100 dark:bg-emerald-950/20 dark:text-emerald-400 dark:border-emerald-900/30'
+                            }`}>
+                              {msg.text}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[75%] sm:max-w-[70%] rounded-2xl p-3 text-xs font-semibold shadow-xs leading-relaxed ${
+                              isMe
+                                ? 'bg-slate-900 text-white rounded-br-none dark:bg-slate-100 dark:text-slate-900'
+                                : 'bg-white text-slate-800 border border-slate-150 dark:bg-slate-800 dark:text-slate-50 dark:border-slate-700/60 rounded-bl-none'
+                            }`}>
+                              <p className="break-words whitespace-pre-wrap">{msg.text}</p>
+                              <span className={`block text-[8px] mt-1 text-right font-medium ${isMe ? 'text-slate-400 dark:text-slate-500' : 'text-slate-400'}`}>
+                                {formatTime(msg.timestamp || msg.createdAt)}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </React.Fragment>
+                    );
+                  })
+                )}
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Secure Input Form Block */}
               <form onSubmit={handleSendMessage} className="p-4 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex space-x-2">
                 <input
                   type="text"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   disabled={isChannelLocked}
-                  placeholder={isChannelLocked ? "This listing channel is closed — Deactivated" : "Type your transaction message here safety parameters..."}
+                  placeholder={isChannelLocked ? "This listing channel is closed — Deactivated" : "Type your transaction message here..."}
                   className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-xs font-bold text-slate-900 dark:text-slate-50 placeholder-slate-400 outline-none focus:border-emerald-500 transition-colors disabled:opacity-50"
                 />
                 <button 
                   type="submit" 
                   disabled={isChannelLocked}
-                  className="p-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition flex items-center justify-center shrink-0 shadow-2xs disabled:bg-slate-400 dark:disabled:bg-slate-700"
+                  className="p-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl transition flex items-center justify-center shrink-0 shadow-xs disabled:bg-slate-400 dark:disabled:bg-slate-700"
                 >
                   <Send size={15} />
                 </button>
@@ -409,8 +522,60 @@ export default function MessagesPage({ user }) {
               </p>
             </div>
           )}
-        </section>
 
+          {/* Report Modal */}
+          {showReportModal && (
+            <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-fade-in">
+              <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-xl space-y-4">
+                <div className="flex items-center justify-between text-rose-500 dark:text-rose-400">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert size={18} />
+                    <span className="text-xs font-black uppercase tracking-wider">Refine Interaction Moderation Log</span>
+                  </div>
+                  <button 
+                    onClick={() => setShowReportModal(false)}
+                    className="p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg bg-slate-100 dark:bg-slate-800"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+                
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
+                  Please specify any safety discrepancies or descriptive notes regarding this peer negotiation sequence for safety validation.
+                </p>
+
+                <form onSubmit={handleReportUserSubmit} className="space-y-3">
+                  <textarea
+                    rows={4}
+                    maxLength={400}
+                    value={reportReason}
+                    onChange={(e) => setReportReason(e.target.value)}
+                    placeholder="Provide context regarding terms, communication, or transaction safety..."
+                    className="w-full text-xs font-bold p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 outline-none placeholder-slate-400 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/10 transition resize-none"
+                    required
+                  />
+                  
+                  <div className="flex justify-end gap-2">
+                    <button 
+                      type="button"
+                      onClick={() => setShowReportModal(false)}
+                      className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:opacity-80 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      type="submit"
+                      disabled={submittingReport || !reportReason.trim()}
+                      className="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-rose-600 text-white shadow-xs hover:bg-rose-500 transition disabled:opacity-50"
+                    >
+                      {submittingReport ? 'Submitting...' : 'Submit Report'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
