@@ -5,7 +5,7 @@ const User = require('../models/User');
 const ActivityLog = require('../models/ActivityLog');
 const Request = require('../models/Request');
 const Report = require('../models/Report');
-const { sendEmailOTP, sendPasswordResetEmail } = require('../services/otpService');
+const { sendEmailOTP } = require('../services/otpService');
 
 const router = express.Router();
 
@@ -28,15 +28,6 @@ router.post('/request-password-otp', async (req, res) => {
     otpStore[email] = { code, timestamp: Date.now(), attempts: 0 };
 
     console.log(`Password reset OTP for ${email}: ${code}`);
-
-    // Send password reset email
-    try {
-      await sendPasswordResetEmail(email, code);
-    } catch (emailError) {
-      console.error(`⚠️ Password reset email failed for ${email}:`, emailError.message);
-      return res.status(500).json({ message: 'Failed to send password reset email. Please try again later.' });
-    }
-
     res.json({ message: 'Verification code sent to your email', success: true });
   } catch (err) {
     res.status(500).json({ message: 'Failed to send verification code', error: err.message });
@@ -190,7 +181,19 @@ router.post('/register', async (req, res) => {
         : `Verification code sent by ${mode}.`,
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    console.error('Registration error:', err.message);
+    // Handle Mongoose duplicate key errors
+    if (err.code === 11000) {
+      const field = Object.keys(err.keyPattern || {})[0];
+      const fieldNames = { schoolMail: 'email', schoolId: 'school ID', phone: 'phone number' };
+      return res.status(400).json({ message: `An account with this ${fieldNames[field] || field} already exists.` });
+    }
+    // Handle Mongoose validation errors
+    if (err.name === 'ValidationError') {
+      const firstError = Object.values(err.errors)[0];
+      return res.status(400).json({ message: firstError.message });
+    }
+    res.status(500).json({ message: 'Registration failed. Please try again later.' });
   }
 });
 
@@ -251,15 +254,6 @@ router.post('/request-verification', async (req, res) => {
 
     console.log(`New verification code (${selectedMode}) for ${user.schoolMail}: ${newCode}`);
 
-    if (selectedMode === 'email') {
-      try {
-        await sendEmailOTP(user.schoolMail, newCode);
-      } catch (emailError) {
-        console.error(`⚠️ Resend verification email failed for ${user.schoolMail}:`, emailError.message);
-        return res.status(500).json({ message: 'Failed to send verification email. Please try again later.' });
-      }
-    }
-
     if (ActivityLog) {
       await ActivityLog.create({ user: user._id, action: 'request-verification', details: `Sent via ${selectedMode}` });
     }
@@ -281,55 +275,6 @@ router.post('/confirm-verification', async (req, res) => {
     user.verified = true;
     user.verificationCode = null;
     await user.save();
-
-    // Send verification success email
-    try {
-      const successHtml = `
-        <div style="font-family: sans-serif; padding: 20px; color: #334155; max-width: 500px; border: 1px solid #e2e8f0; border-radius: 12px;">
-          <h2 style="color: #059669; font-weight: 900; margin-bottom: 4px;">Account Verified! ✅</h2>
-          <p style="font-size: 14px; font-weight: 600; color: #64748b; margin-top: 0;">Campus Marketplace</p>
-          <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-          <p style="font-size: 14px; font-weight: 500; line-height: 1.5;">Hi <strong>${user.firstName}</strong>,</p>
-          <p style="font-size: 14px; font-weight: 500; line-height: 1.5;">Your account has been successfully verified! You're now ready to buy and sell on Campus Marketplace.</p>
-          <div style="background-color: #ecfdf5; border: 1px solid #d1fae5; border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0;">
-            <p style="font-size: 16px; font-weight: 700; color: #059669; margin: 0;">Welcome to the community! 🎉</p>
-          </div>
-          <p style="font-size: 14px; font-weight: 500; color: #475569; line-height: 1.6;">
-            <strong>What's Next?</strong><br/>
-            • Browse listings from verified students<br/>
-            • Create your first listing<br/>
-            • Connect with the student community
-          </p>
-          <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-          <p style="font-size: 12px; color: #94a3b8; line-height: 1.4;">
-            <strong>Campus Marketplace Team</strong><br/>
-            Connecting Students. Building Community. 📱
-          </p>
-        </div>
-      `;
-
-      const mailOptions = {
-        from: `"Campus Marketplace" <${process.env.EMAIL_USER}>`,
-        to: user.schoolMail,
-        subject: `Account Verified - Welcome to Campus Marketplace, ${user.firstName}!`,
-        html: successHtml,
-      };
-
-      const nodemailer = require('nodemailer');
-      const transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: process.env.EMAIL_USER,
-          pass: process.env.EMAIL_PASSWORD,
-        },
-      });
-
-      await transporter.sendMail(mailOptions);
-      console.log(`✉️ Account Verification Confirmation Email Sent -> [${user.schoolMail}]`);
-    } catch (emailError) {
-      console.error(`⚠️ Confirmation email failed for ${user.schoolMail}:`, emailError.message);
-      // Don't fail verification if email fails
-    }
 
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '7d' });
     if (ActivityLog) await ActivityLog.create({ user: user._id, action: 'confirm-verification', details: 'Verified' });

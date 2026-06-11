@@ -217,8 +217,9 @@ function AuthScreen({ onSignIn }) {
     password: '',
     confirmPassword: '',
     identifier: '',
+    gender: '',
   });
-  const [verificationMode, setVerificationMode] = useState('admin');
+  const [verificationMode, setVerificationMode] = useState('email');
   const [modalVisible, setModalVisible] = useState(false);
   const [verificationPending, setVerificationPending] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
@@ -248,6 +249,7 @@ function AuthScreen({ onSignIn }) {
         schoolMail: form.schoolMail,
         phone: form.phone,
         password: form.password,
+        gender: form.gender,
         verificationMode,
       });
       setVerificationPending(true);
@@ -337,6 +339,13 @@ function AuthScreen({ onSignIn }) {
       <TextInput style={styles.input} placeholder="School ID" value={form.schoolId} onChangeText={(text) => setField('schoolId', text)} />
       <TextInput style={styles.input} placeholder="School Mail" keyboardType="email-address" value={form.schoolMail} onChangeText={(text) => setField('schoolMail', text)} />
       <TextInput style={styles.input} placeholder="Phone Number" keyboardType="phone-pad" value={form.phone} onChangeText={(text) => setField('phone', text)} />
+      <View style={styles.typeRow}>
+        {['Male', 'Female'].map((g) => (
+          <TouchableOpacity key={g} style={[styles.typeButton, form.gender === g && styles.typeButtonActive]} onPress={() => setField('gender', g)}>
+            <Text style={[styles.typeText, form.gender === g && styles.typeTextActive]}>{g}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
       <View style={styles.passwordContainer}>
         <TextInput
           style={styles.passwordInput}

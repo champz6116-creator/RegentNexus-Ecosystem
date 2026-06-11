@@ -22,12 +22,17 @@ const app = express();
 const server = http.createServer(app);
 
 // 🌟 Single Source of Truth for Security Operations
-const ALLOWED_ORIGIN = process.env.FRONTEND_URL || 'http://localhost:5173';
+const ALLOWED_ORIGINS = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:19006',  // Expo web
+].filter(Boolean);
 
 // Attached with secure dynamic origin matching for credentialed WebSockets handshakes
 const io = socketio(server, { 
   cors: { 
-    origin: ALLOWED_ORIGIN, 
+    origin: ALLOWED_ORIGINS, 
     methods: ['GET', 'POST'],
     credentials: true 
   },
@@ -40,7 +45,14 @@ app.set('io', io);
 
 // Express Middleware Layer CORS Synchronization
 app.use(cors({
-  origin: ALLOWED_ORIGIN,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, server-to-server)
+    if (!origin) return callback(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
+    // Allow any localhost origin for development
+    if (origin.startsWith('http://localhost')) return callback(null, true);
+    callback(null, true); // Allow all origins for now (mobile RN doesn't send consistent origins)
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
