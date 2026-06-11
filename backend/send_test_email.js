@@ -1,0 +1,25 @@
+const nodemailer = require('nodemailer');
+require('dotenv').config({ path: './.env' });
+
+(async () => {
+  try {
+    const transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASSWORD }
+    });
+
+    const mailOptions = {
+      from: `Campus Marketplace <${process.env.EMAIL_USER}>`,
+      to: process.env.EMAIL_USER,
+      subject: 'RegentNexus SMTP Test (backend)',
+      text: 'This is a test email from the RegentNexus SMTP diagnostic script (backend).',
+      html: '<div><strong>This is a test email from the RegentNexus SMTP diagnostic script (backend).</strong></div>'
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log('SEND_OK', info);
+  } catch (err) {
+    console.error('SEND_ERR', err);
+    process.exit(2);
+  }
+})();

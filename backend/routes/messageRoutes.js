@@ -146,6 +146,7 @@ router.post('/initialize', verifyToken, async (req, res) => {
     // Safe Engine Resolve: Broadcasts live socket pulse to the active peer room boundary
     const io = req.app.get('io') || global.io;
     if (io) {
+      console.log(`🔔 Emitting message to room [${recipientId.toString().trim()}]:`, output);
       io.to(recipientId.toString().trim()).emit('receive_message', output);
     }
 
@@ -201,6 +202,7 @@ router.post('/channel/:chatId/send', verifyToken, async (req, res) => {
     // Safe Engine Resolve: Routes the data stream out to the remote recipient
     const io = req.app.get('io') || global.io;
     if (io) {
+      console.log(`🔔 Emitting message to room [${recipientId.toString().trim()}]:`, output);
       io.to(recipientId.toString().trim()).emit('receive_message', output);
     }
 
@@ -259,6 +261,46 @@ router.post('/report', verifyToken, async (req, res) => {
 
     return res.status(201).json({ message: 'User reported cleanly.' });
   } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+// Developer helper: Debug-only endpoint to simulate sending messages without auth (DO NOT enable in production)
+router.post('/debug/send', async (req, res) => {
+  try {
+    const { senderId, recipientId, text, contextItem, itemId } = req.body;
+    if (!senderId || !recipientId || !text) return res.status(400).json({ message: 'senderId, recipientId and text required' });
+
+    const newMessage = new Message({
+      sender: senderId,
+      recipient: recipientId,
+      text: text.trim(),
+      contextItem: contextItem || 'Debug Message',
+      itemId: itemId || null,
+      timestamp: new Date()
+    });
+
+    const savedMsg = await newMessage.save();
+    const output = {
+      _id: savedMsg._id.toString(),
+      text: savedMsg.text,
+      sender: senderId.toString(),
+      recipient: recipientId.toString(),
+      contextItem: savedMsg.contextItem,
+      itemId: savedMsg.itemId,
+      isSystemAction: false,
+      timestamp: savedMsg.timestamp
+    };
+
+    const io = req.app.get('io') || global.io;
+    if (io) {
+      console.log(`🔔 [DEBUG] Emitting message to room [${recipientId.toString().trim()}]:`, output);
+      io.to(recipientId.toString().trim()).emit('receive_message', output);
+    }
+
+    return res.status(201).json(output);
+  } catch (err) {
+    console.error('[DEBUG] Failed to send debug message:', err);
     return res.status(500).json({ message: err.message });
   }
 });

@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Socket Demo - RegentNexus</title>
+  <style>
+    body { font-family: Inter, system-ui, Arial; background:#f8fafc; color:#0f172a; }
+    .wrap { max-width:1000px; margin:24px auto; display:flex; gap:16px; }
+    .card { background:white; padding:16px; border-radius:12px; box-shadow: 0 6px 18px rgba(15,23,42,0.06); flex:1 }
+    .messages { height:320px; overflow:auto; border:1px solid #eef2f7; padding:12px; border-radius:8px; background:#fafafa }
+    .msg { margin:6px 0; padding:8px 10px; border-radius:8px; display:inline-block }
+    .me { background:#10b981; color:white; align-self:flex-end }
+    .them { background:#e6f6ef; color:#065f46 }
+    .controls { margin-top:12px; display:flex; gap:8px }
+  </style>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+  <h2 style="text-align:center">RegentNexus Socket Demo (Buyer ⇄ Seller)</h2>
+  <div class="wrap">
+    <div class="card" id="buyer">
+      <h3>Buyer</h3>
+      <div><strong>ID:</strong> <span id="buyerId"></span></div>
+      <div class="messages" id="buyerMessages"></div>
+      <div class="controls">
+        <input id="buyerInput" placeholder="Type a message..." style="flex:1;padding:8px;border-radius:8px;border:1px solid #e6eef6" />
+        <button id="buyerSend">Send</button>
+      </div>
+    </div>
+    <div class="card" id="seller">
+      <h3>Seller</h3>
+      <div><strong>ID:</strong> <span id="sellerId"></span></div>
+      <div class="messages" id="sellerMessages"></div>
+      <div class="controls">
+        <input id="sellerInput" placeholder="Type a message..." style="flex:1;padding:8px;border-radius:8px;border:1px solid #e6eef6" />
+        <button id="sellerSend">Send</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Generates a 24-char hex string (Mongo ObjectId-like) for demo
+    function makeId() {
+      const hex = '0123456789abcdef'; let s = ''; for (let i=0;i<24;i++) s += hex[Math.floor(Math.random()*16)]; return s;
+    }
+
+    const buyerId = makeId();
+    const sellerId = makeId();
+
+    document.getElementById('buyerId').innerText = buyerId;
+    document.getElementById('sellerId').innerText = sellerId;
+
+    const BACKEND = window.location.hostname === 'localhost' ? 'http://localhost:5000' : 'https://regent-nexus-backend.onrender.com';
+
+    const buyerSocket = io(BACKEND, { transports:['polling','websocket'] });
+    const sellerSocket = io(BACKEND, { transports:['polling','websocket'] });
+
+    buyerSocket.on('connect', () => { buyerSocket.emit('join_room', buyerId); appendBuyer('System: connected (socket id ' + buyerSocket.id + ')', 'them'); });
+    sellerSocket.on('connect', () => { sellerSocket.emit('join_room', sellerId); appendSeller('System: connected (socket id ' + sellerSocket.id + ')', 'them'); });
+
+    buyerSocket.on('receive_message', (msg) => { appendBuyer((msg.sender === buyerId ? 'You' : 'Them') + ': ' + msg.text, msg.sender === buyerId ? 'me' : 'them'); });
+    sellerSocket.on('receive_message', (msg) => { appendSeller((msg.sender === sellerId ? 'You' : 'Them') + ': ' + msg.text, msg.sender === sellerId ? 'me' : 'them'); });
+
+    document.getElementById('buyerSend').addEventListener('click', async () => {
+      const text = document.getElementById('buyerInput').value.trim(); if (!text) return;
+      // send via debug endpoint
+      await fetch(BACKEND + '/api/messages/debug/send', {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ senderId: buyerId, recipientId: sellerId, text })
+      });
+      document.getElementById('buyerInput').value = '';
+    });
+
+    document.getElementById('sellerSend').addEventListener('click', async () => {
+      const text = document.getElementById('sellerInput').value.trim(); if (!text) return;
+      await fetch(BACKEND + '/api/messages/debug/send', {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ senderId: sellerId, recipientId: buyerId, text })
+      });
+      document.getElementById('sellerInput').value = '';
+    });
+
+    function appendBuyer(txt, cls) { const node = document.createElement('div'); node.className = 'msg ' + (cls==='me'?'me':'them'); node.innerText = txt; document.getElementById('buyerMessages').appendChild(node); document.getElementById('buyerMessages').scrollTop = 99999; }
+    function appendSeller(txt, cls) { const node = document.createElement('div'); node.className = 'msg ' + (cls==='me'?'me':'them'); node.innerText = txt; document.getElementById('sellerMessages').appendChild(node); document.getElementById('sellerMessages').scrollTop = 99999; }
+  </script>
+</body>
+</html>

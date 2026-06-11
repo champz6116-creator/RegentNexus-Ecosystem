@@ -104,43 +104,8 @@ router.post('/register', async (req, res) => {
     // Send welcome email with verification code
     if (mode === 'email' && code) {
       try {
-        const welcomeHtml = `
-          <div style="font-family: sans-serif; padding: 20px; color: #334155; max-width: 500px; border: 1px solid #e2e8f0; border-radius: 12px;">
-            <h2 style="color: #059669; font-weight: 900; margin-bottom: 4px;">Welcome to Campus Marketplace! 🎉</h2>
-            <p style="font-size: 14px; font-weight: 600; color: #64748b; margin-top: 0;">Student Community Trading Platform</p>
-            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-            <p style="font-size: 14px; font-weight: 500; line-height: 1.5;">Hi <strong>${firstName}</strong>,</p>
-            <p style="font-size: 14px; font-weight: 500; line-height: 1.5;">Thank you for joining Campus Marketplace! We're excited to have you as part of our trusted student community.</p>
-            <p style="font-size: 14px; font-weight: 500; line-height: 1.5;">To complete your registration, please verify your account using the security code below:</p>
-            <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0;">
-              <span style="font-size: 28px; font-weight: 900; letter-spacing: 4px; color: #0f172a;">${code}</span>
-            </div>
-            <p style="font-size: 12px; font-weight: 600; color: #64748b; line-height: 1.5;">This code will expire in 10 minutes. If you didn't create this account, please contact us immediately.</p>
-            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-            <p style="font-size: 12px; color: #94a3b8; line-height: 1.4;">
-              <strong>Campus Marketplace Team</strong><br/>
-              Connecting Students. Building Community. 📱
-            </p>
-          </div>
-        `;
-
-        const mailOptions = {
-          from: `"Campus Marketplace" <${process.env.EMAIL_USER}>`,
-          to: normalizedEmail,
-          subject: `Welcome ${firstName}! Verify Your Campus Marketplace Account`,
-          html: welcomeHtml,
-        };
-
-        const nodemailer = require('nodemailer');
-        const transporter = nodemailer.createTransport({
-          service: 'gmail',
-          auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASSWORD,
-          },
-        });
-
-        await transporter.sendMail(mailOptions);
+        // Use centralized OTP/email service to ensure consistent SMTP configuration
+        await sendEmailOTP(normalizedEmail, code);
         console.log(`✉️ Registration Welcome Email Sent -> [${normalizedEmail}]`);
       } catch (emailError) {
         console.error(`⚠️ Welcome email failed for ${normalizedEmail}:`, emailError.message);
@@ -253,6 +218,17 @@ router.post('/request-verification', async (req, res) => {
     await user.save();
 
     console.log(`New verification code (${selectedMode}) for ${user.schoolMail}: ${newCode}`);
+
+    // If email mode is selected, send the verification code via centralized email service
+    if (selectedMode === 'email') {
+      try {
+        await sendEmailOTP(user.schoolMail, newCode);
+        console.log(`✉️ Verification email sent -> [${user.schoolMail}]`);
+      } catch (emailErr) {
+        console.error(`⚠️ Failed to send verification email to ${user.schoolMail}:`, emailErr.message);
+        // don't fail the API call if email sending fails — frontend can prompt user to retry
+      }
+    }
 
     if (ActivityLog) {
       await ActivityLog.create({ user: user._id, action: 'request-verification', details: `Sent via ${selectedMode}` });
