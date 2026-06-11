@@ -62,86 +62,145 @@ export default function DetailedScreen({ user, onUpdateUser }) {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-slate-50 dark:bg-slate-950">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-500"></div>
+      <div className="flex flex-col justify-center items-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900">
+        <div className="relative w-16 h-16">
+          <div className="absolute inset-0 rounded-full border-4 border-slate-200 dark:border-slate-700"></div>
+          <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-emerald-600 dark:border-t-emerald-500 animate-spin"></div>
+        </div>
+        <p className="mt-6 text-sm font-semibold text-slate-600 dark:text-slate-300 tracking-wide">Loading details...</p>
       </div>
     );
   }
 
   if (!item) {
     return (
-      <div className="flex flex-col justify-center items-center min-h-screen bg-slate-50 dark:bg-slate-950">
-        <p className="text-slate-500 dark:text-slate-400 font-medium">Item not found.</p>
-        <button onClick={() => navigate(-1)} className="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-xl">Go Back</button>
+      <div className="flex flex-col justify-center items-center min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:to-slate-900 px-4">
+        <div className="w-20 h-20 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center mb-4">
+          <ImageIcon className="text-slate-400 dark:text-slate-500" size={40} />
+        </div>
+        <p className="text-lg font-bold text-slate-900 dark:text-white mb-2 text-center">Item not found</p>
+        <p className="text-sm text-slate-600 dark:text-slate-400 text-center mb-6">This listing may have been removed or is unavailable.</p>
+        <button onClick={() => navigate(-1)} className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white rounded-xl font-bold shadow-lg shadow-emerald-600/30 transition duration-200">
+          Return to Marketplace
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen w-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-6 transition-colors duration-200">
-      <div className="max-w-5xl mx-auto">
-        
-        {/* Navigation Bar */}
-        <div className="flex justify-between items-center mb-6">
-          <button onClick={() => navigate(-1)} className="flex items-center space-x-2 text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">
-            <ArrowLeft size={16} />
-            <span>Back to Marketplace</span>
+    <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
+      
+      {/* Premium Navigation Header */}
+      <div className="sticky top-0 z-40 backdrop-blur-md bg-white/80 dark:bg-slate-900/80 border-b border-slate-200/60 dark:border-slate-800/60">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+          <button 
+            onClick={() => navigate(-1)} 
+            className="flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors group"
+          >
+            <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+            <span>Back</span>
           </button>
           
-          <button onClick={handleToggleStar} className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 transition shadow-xs">
-            <Bookmark size={18} className={(user?.starredServices?.includes(item?._id) || user?.starredServices?.includes(itemId)) ? 'fill-emerald-600 text-emerald-600' : 'text-slate-400'} />
+          <button 
+            onClick={handleToggleStar} 
+            className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all duration-200 shadow-sm hover:shadow-md"
+            title="Save to favorites"
+          >
+            <Bookmark 
+              size={20} 
+              className={(user?.starredServices?.includes(item?._id) || user?.starredServices?.includes(itemId)) 
+                ? 'fill-emerald-600 text-emerald-600' 
+                : 'text-slate-400 dark:text-slate-500'} 
+            />
           </button>
         </div>
+      </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-sm">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 lg:py-12">
+        
+        {/* Premium Content Grid - Mobile First */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 lg:gap-8">
           
           {/* Image Container */}
-          <div className="w-full aspect-square bg-slate-100 dark:bg-slate-800 rounded-2xl overflow-hidden flex items-center justify-center relative border border-slate-200/50 dark:border-slate-700/50">
-            {item.imageUrl ? (
-              <img src={item.imageUrl} alt={item.title} className="w-full h-full object-cover" />
-            ) : (
-              <div className="text-center p-4">
-                <ImageIcon size={48} className="mx-auto text-slate-400 mb-2" />
-                <span className="text-xs text-slate-400">No Image Available</span>
-              </div>
-            )}
+          <div className="lg:col-span-3">
+            <div className="w-full aspect-square bg-slate-100 dark:bg-slate-800 rounded-3xl overflow-hidden flex items-center justify-center relative border border-slate-200 dark:border-slate-700 shadow-lg">
+              {item.imageUrl ? (
+                <img 
+                  src={item.imageUrl} 
+                  alt={item.title} 
+                  className="w-full h-full object-cover" 
+                />
+              ) : (
+                <div className="text-center p-8 space-y-3">
+                  <div className="w-16 h-16 rounded-2xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center mx-auto">
+                    <ImageIcon size={32} className="text-slate-400 dark:text-slate-500" />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 block">No Image Available</span>
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Details Section */}
-          <div className="flex flex-col justify-between space-y-6">
+          {/* Details Panel */}
+          <div className="lg:col-span-2 flex flex-col gap-5">
             <div className="space-y-4">
-              <div>
-                <span className="inline-block bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-xs px-3 py-1 rounded-full font-bold uppercase tracking-wider">
-                  {item.type === 'item' ? 'Item' : 'Service'} • {item.category || 'General'}
-                </span>
-                <h1 className="text-3xl font-black tracking-tight mt-2">{item.title}</h1>
-                <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1">GHS {Number(item.price).toFixed(2)}</p>
+              {/* Category & Title Section */}
+              <div className="space-y-3 pb-4 border-b border-slate-200 dark:border-slate-700">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-xs px-3 py-1.5 rounded-full font-bold uppercase tracking-wider border border-emerald-200 dark:border-emerald-800/50">
+                    {item.type === 'item' ? '🛍️ Item' : '💼 Service'}
+                  </span>
+                  <span className="inline-block bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs px-3 py-1.5 rounded-full font-semibold">
+                    {item.category || 'General'}
+                  </span>
+                </div>
+                <h1 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white leading-tight tracking-tight">{item.title}</h1>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-3xl font-black bg-gradient-to-r from-emerald-600 to-emerald-700 dark:from-emerald-400 dark:to-emerald-500 bg-clip-text text-transparent">
+                    GHS {Number(item.price).toFixed(2)}
+                  </p>
+                  <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{item.type === 'item' ? 'per unit' : 'per service'}</p>
+                </div>
               </div>
 
-              <div className="border-t border-slate-100 dark:border-slate-800 pt-4">
-                <h3 className="text-xs uppercase font-bold tracking-widest text-slate-400 mb-1">Description</h3>
-                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-medium">{item.description || 'No description provided.'}</p>
+              {/* Description Block */}
+              <div className="space-y-2 pb-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 className="text-xs uppercase font-bold tracking-widest text-slate-500 dark:text-slate-400">Description</h3>
+                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{item.description || 'No description provided.'}</p>
               </div>
 
+              {/* Special Note Block */}
               {item.note && (
-                <div className="p-4 bg-amber-50/60 dark:bg-amber-950/10 rounded-2xl border border-amber-100/70 dark:border-amber-900/30">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-400 block">Note</span>
-                  <p className="text-xs font-semibold text-amber-950 dark:text-amber-200 mt-1">{item.note}</p>
+                <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/30 dark:to-orange-950/20 rounded-2xl border border-amber-200 dark:border-amber-700/40 shadow-sm">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300 block mb-1.5">📌 Important Note</span>
+                  <p className="text-xs font-semibold text-amber-900 dark:text-amber-100 leading-relaxed">{item.note}</p>
                 </div>
               )}
             </div>
 
             {/* Quantity Selector (Only for Items) */}
             {item.type === 'item' && (
-              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-950/50 p-3.5 rounded-2xl border border-slate-100 dark:border-slate-800">
-                <div>
-                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Available Stock</p>
-                  <p className="text-sm font-bold mt-0.5">{item.quantity || 1} units</p>
-                </div>
-                <div className="flex items-center gap-3 bg-white dark:bg-slate-800 rounded-lg p-1 border border-slate-200 dark:border-slate-700">
-                  <button onClick={() => setQuantity(Math.max(1, quantity - 1))} className="px-2 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-xs font-bold">−</button>
-                  <span className="w-4 text-center font-bold text-xs">{quantity}</span>
-                  <button onClick={() => setQuantity(Math.min(item.quantity || 1, quantity + 1))} className="px-2 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded text-xs font-bold">+</button>
+              <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800/40 dark:to-slate-900/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">Stock Available</p>
+                    <p className="text-lg font-bold text-slate-900 dark:text-white mt-1">{item.quantity || 1} units</p>
+                  </div>
+                  <div className="flex items-center gap-1 bg-white dark:bg-slate-800 rounded-xl p-1.5 border border-slate-200 dark:border-slate-600 shadow-sm">
+                    <button 
+                      onClick={() => setQuantity(Math.max(1, quantity - 1))} 
+                      className="px-2.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm font-bold text-slate-900 dark:text-white transition"
+                    >
+                      −
+                    </button>
+                    <span className="w-6 text-center font-black text-base text-slate-900 dark:text-white">{quantity}</span>
+                    <button 
+                      onClick={() => setQuantity(Math.min(item.quantity || 1, quantity + 1))} 
+                      className="px-2.5 py-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg text-sm font-bold text-slate-900 dark:text-white transition"
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

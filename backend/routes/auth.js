@@ -5,6 +5,7 @@ const User = require('../models/User');
 const ActivityLog = require('../models/ActivityLog');
 const Request = require('../models/Request'); 
 const Report = require('../models/Report');
+const otpServices = require('../services/otpService');
 
 const router = express.Router();
 
@@ -185,9 +186,18 @@ router.post('/request-verification', async (req, res) => {
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const selectedMode = mode || user.verificationMode || 'email';
+    const newCode = otpServices.generateOTP(); // Use your service function
+    
     user.verificationMode = selectedMode;
-    user.verificationCode = generateCode();
+    user.verificationCode = newCode;
     await user.save();
+
+    // 🌟 THE MISSING PIECE: Actually send the code
+    if (selectedMode === 'email') {
+      await otpServices.sendEmailOTP(user.schoolMail, newCode);
+    } else {
+      await otpServices.sendSMSOTP(user.phone, newCode);
+    }
 
     if (ActivityLog) {
       await ActivityLog.create({ user: user._id, action: 'request-verification', details: `Sent via ${selectedMode}` });

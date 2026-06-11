@@ -112,8 +112,12 @@ export default function ListingsPage() {
     setLoading(true);
     try {
       await api.put(`/listings/${editingId}`, {
-        ...editForm,
+        title: editForm.title,
         price: Number(editForm.price) || 0,
+        description: editForm.description,
+        category: editForm.category,
+        type: editForm.type,
+        note: editForm.note || '',
         quantity: editForm.type === 'item' ? (Number(editForm.quantity) || 1) : 1
       });
       setMessage('Listing updated successfully.');
