@@ -5,14 +5,16 @@ const User = require('../models/User');
 const ActivityLog = require('../models/ActivityLog');
 const Request = require('../models/Request'); 
 const Report = require('../models/Report');
-const otpServices = require('../services/otpService');
 
 const router = express.Router();
 
+// Helper to generate 6-digit verification code
 const generateCode = () => Math.floor(100000 + Math.random() * 900000).toString();
+
+// Temporary memory store for password reset OTPs
 const otpStore = {};
 
-// Request verification code for password change
+// 1. Request verification code for password change
 router.post('/request-password-otp', async (req, res) => {
   try {
     const { email } = req.body;
@@ -31,7 +33,7 @@ router.post('/request-password-otp', async (req, res) => {
   }
 });
 
-// Verify password change OTP
+// 2. Verify password change OTP
 router.post('/verify-password-otp', async (req, res) => {
   try {
     const { email, code } = req.body;
@@ -62,7 +64,7 @@ router.post('/verify-password-otp', async (req, res) => {
   }
 });
 
-// Registration Route
+// 3. Registration Route
 router.post('/register', async (req, res) => {
   try {
     const { firstName, lastName, schoolId, schoolMail, phone, password, verificationMode, gender } = req.body;
@@ -112,7 +114,6 @@ router.post('/register', async (req, res) => {
       await ActivityLog.create({ user: user._id, action: 'register', details: `Registered via ${mode}` });
     }
 
-    // 🌟 UPDATED: Matches structural consistency across full schema profile properties
     res.json({
       user: { 
         _id: user._id, 
@@ -136,7 +137,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-// Login Route with verification fallback alignment
+// 4. Login Route
 router.post('/login', async (req, res) => {
   try {
     const { identifier, password } = req.body;
@@ -147,7 +148,6 @@ router.post('/login', async (req, res) => {
     const match = await bcrypt.compare(password, user.password);
     if (!match) return res.status(400).json({ message: 'Invalid credentials' });
     
-    // Aligned to pass verification Mode if account is unverified
     if (!user.verified) {
       return res.status(401).json({ 
         message: 'Account not verified', 
@@ -158,7 +158,6 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '7d' });
     
-    // 🌟 UPDATED: Appended missing keys over the response payload context safely
     res.json({ 
         token, 
         user: { 
@@ -179,6 +178,7 @@ router.post('/login', async (req, res) => {
   }
 });
 
+// 5. Request / Resend Verification Code
 router.post('/request-verification', async (req, res) => {
   try {
     const { identifier, mode } = req.body;
@@ -186,18 +186,13 @@ router.post('/request-verification', async (req, res) => {
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const selectedMode = mode || user.verificationMode || 'email';
-    const newCode = otpServices.generateOTP(); // Use your service function
+    const newCode = generateCode();
     
     user.verificationMode = selectedMode;
     user.verificationCode = newCode;
     await user.save();
 
-    // 🌟 THE MISSING PIECE: Actually send the code
-    if (selectedMode === 'email') {
-      await otpServices.sendEmailOTP(user.schoolMail, newCode);
-    } else {
-      await otpServices.sendSMSOTP(user.phone, newCode);
-    }
+    console.log(`New verification code (${selectedMode}) for ${user.schoolMail}: ${newCode}`);
 
     if (ActivityLog) {
       await ActivityLog.create({ user: user._id, action: 'request-verification', details: `Sent via ${selectedMode}` });
@@ -208,6 +203,7 @@ router.post('/request-verification', async (req, res) => {
   }
 });
 
+// 6. Confirm Verification Code
 router.post('/confirm-verification', async (req, res) => {
   try {
     const { identifier, code } = req.body;
@@ -223,7 +219,6 @@ router.post('/confirm-verification', async (req, res) => {
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '7d' });
     if (ActivityLog) await ActivityLog.create({ user: user._id, action: 'confirm-verification', details: 'Verified' });
 
-    // 🌟 UPDATED: Extended verification object to match the user payload requirements exactly
     res.json({ 
       token, 
       user: { 

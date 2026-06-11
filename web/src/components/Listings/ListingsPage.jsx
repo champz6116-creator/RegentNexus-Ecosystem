@@ -134,10 +134,10 @@ export default function ListingsPage() {
     <article className="space-y-6 max-w-2xl mx-auto p-4 text-slate-900 dark:text-slate-100 transition-colors duration-200">
       
       {/* Creation Pane */}
-      <section className="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm border border-slate-100 dark:border-slate-800">
+      <section className="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm border border-slate-300 dark:border-slate-800">
         <div className="flex items-center space-x-2 mb-6">
-          <Sparkles className="text-emerald-600 dark:text-emerald-400" size={22} />
-          <h2 className="text-2xl font-black tracking-tight">Create Marketplace Listing</h2>
+          <Sparkles className="text-emerald-700 dark:text-emerald-400" size={22} />
+          <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100">Create Marketplace Listing</h2>
         </div>
         
         {message && (
@@ -151,14 +151,14 @@ export default function ListingsPage() {
             {['item', 'service'].map((t) => (
               <label key={t} className="flex-1 text-center p-3 rounded-2xl border cursor-pointer capitalize font-bold transition bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 select-none">
                 <input type="radio" name="type" checked={form.type === t} onChange={() => setForm({...form, type: t})} className="sr-only" />
-                <span className={form.type === t ? 'text-emerald-600 dark:text-emerald-400 block scale-105' : 'text-slate-400 block'}>{t}</span>
+                <span className={form.type === t ? 'text-emerald-600 dark:text-emerald-400 block scale-105' : 'text-slate-700 dark:text-slate-400 block'}>{t}</span>
               </label>
             ))}
           </div>
 
           {form.type === 'item' && (
             <div className="space-y-2">
-              <span className="text-xs uppercase font-extrabold tracking-widest text-slate-400 dark:text-slate-500">Product Image (Required)</span>
+              <span className="text-xs uppercase font-extrabold tracking-widest text-slate-700 dark:text-slate-500">Product Image (Required)</span>
               <div className="relative border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-3xl p-6 text-center hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition flex flex-col items-center justify-center min-h-[160px]">
                 {imagePreview ? (
                   <div className="relative w-full max-h-[200px] overflow-hidden rounded-2xl">
@@ -169,8 +169,8 @@ export default function ListingsPage() {
                   </div>
                 ) : (
                   <label className="cursor-pointer flex flex-col items-center gap-2">
-                    <Upload size={32} className="text-slate-400 dark:text-slate-500" />
-                    <span className="text-sm font-bold text-slate-600 dark:text-slate-400">Click to upload product image</span>
+                    <Upload size={32} className="text-slate-700 dark:text-slate-500" />
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-400">Click to upload product image</span>
                     <input type="file" accept="image/*" onChange={handleFileChange} className="sr-only" />
                   </label>
                 )}
@@ -180,18 +180,18 @@ export default function ListingsPage() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="text-xs uppercase font-extrabold text-slate-400 dark:text-slate-500 block mb-1">Listing Title</label>
+              <label className="text-xs uppercase font-extrabold text-slate-700 dark:text-slate-500 block mb-1">Listing Title</label>
               <input type="text" value={form.title} onChange={e => setForm({...form, title: e.target.value})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100 text-sm font-semibold" placeholder="MacBook, Tutoring, etc..." />
             </div>
             <div>
-              <label className="text-xs uppercase font-extrabold text-slate-400 dark:text-slate-500 block mb-1">Price (GHS)</label>
+              <label className="text-xs uppercase font-extrabold text-slate-700 dark:text-slate-500 block mb-1">Price (GHS)</label>
               <input type="number" value={form.price} onChange={e => setForm({...form, price: e.target.value})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100 text-sm font-semibold" placeholder="0.00" />
             </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="text-xs uppercase font-extrabold text-slate-400 dark:text-slate-500 block mb-1">Category</label>
+              <label className="text-xs uppercase font-extrabold text-slate-700 dark:text-slate-500 block mb-1">Category</label>
               <select value={form.category} onChange={e => setForm({...form, category: e.target.value})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100 text-sm font-semibold">
                 <option value="">Select a category...</option>
                 <option value="electronics">Electronics</option>
@@ -201,7 +201,7 @@ export default function ListingsPage() {
               </select>
             </div>
             <div>
-              <label className="text-xs uppercase font-extrabold text-slate-400 dark:text-slate-500 block mb-1">Available Quantity</label>
+              <label className="text-xs uppercase font-extrabold text-slate-700 dark:text-slate-500 block mb-1">Available Quantity</label>
               <input 
                 type="number" 
                 disabled={form.type === 'service'} 
@@ -214,12 +214,12 @@ export default function ListingsPage() {
           </div>
 
           <div>
-            <label className="text-xs uppercase font-extrabold text-slate-400 dark:text-slate-500 block mb-1">Description</label>
+            <label className="text-xs uppercase font-extrabold text-slate-700 dark:text-slate-500 block mb-1">Description</label>
             <textarea rows={3} value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100 text-sm font-semibold resize-none" placeholder="Provide details about what you are listing..." />
           </div>
 
           <div>
-            <label className="text-xs uppercase font-extrabold text-slate-400 dark:text-slate-500 block mb-1">Fulfillment Note (Optional)</label>
+            <label className="text-xs uppercase font-extrabold text-slate-700 dark:text-slate-500 block mb-1">Fulfillment Note (Optional)</label>
             <input type="text" value={form.note} onChange={e => setForm({...form, note: e.target.value})} className="w-full px-4 py-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100 text-sm font-semibold" placeholder="e.g., Pick up at library courtyard before 4 PM" />
           </div>
 
@@ -236,7 +236,7 @@ export default function ListingsPage() {
           {listings.length === 0 ? (
             <div className="text-center py-8 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800/50 p-4">
               <Package size={36} className="mx-auto text-slate-300 dark:text-slate-600 mb-2" />
-              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">You haven't posted any listings yet.</p>
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-500">You haven't posted any listings yet.</p>
             </div>
           ) : (
             listings.map((item) => (
@@ -283,14 +283,14 @@ export default function ListingsPage() {
                       rows={2}
                       value={editForm.description} 
                       onChange={e => setEditForm({...editForm, description: e.target.value})} 
-                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100 resize-none"
+                      className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-300 focus:outline-none focus:border-slate-900 dark:focus:border-slate-100 resize-none"
                       placeholder="Update Description..."
                     />
                     <div className="flex gap-2 justify-end">
                       <button 
                         type="button" 
                         onClick={() => setEditingId(null)} 
-                        className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-700"
+                        className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-400 font-bold text-xs hover:bg-slate-100 dark:hover:bg-slate-700"
                       >
                         Cancel
                       </button>
@@ -322,7 +322,7 @@ export default function ListingsPage() {
                       <div className="flex items-center space-x-2 self-end sm:self-center">
                         <button 
                           onClick={() => startEdit(item)}
-                          className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-900 dark:hover:border-slate-100 hover:text-slate-900 dark:hover:text-white transition flex items-center justify-center shadow-sm"
+                          className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-slate-900 dark:hover:border-slate-100 hover:text-slate-900 dark:hover:text-white transition flex items-center justify-center shadow-sm"
                           title="Edit Listing"
                         >
                           <Edit2 size={14} />
@@ -336,7 +336,7 @@ export default function ListingsPage() {
                         </button>
                       </div>
                     </div>
-                    <p className="mt-3 text-xs font-semibold text-slate-600 dark:text-slate-400 leading-relaxed">{item.description || item.note}</p>
+                    <p className="mt-3 text-xs font-semibold text-slate-800 dark:text-slate-400 leading-relaxed">{item.description || item.note}</p>
                     <p className="mt-2 text-sm font-black text-slate-900 dark:text-slate-100">GHS {Number(item.price).toFixed(2)}</p>
                   </>
                 )}

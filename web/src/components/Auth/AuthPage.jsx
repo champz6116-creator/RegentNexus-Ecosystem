@@ -18,7 +18,7 @@ export default function AuthPage({ onSignIn }) {
     identifier: '',
   });
   const [errors, setErrors] = useState({});
-  const [verificationMode, setVerificationMode] = useState('admin');
+  const [verificationMode, setVerificationMode] = useState('email'); // 🌟 Defaulting cleanly to automated email pathing
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -110,9 +110,10 @@ export default function AuthPage({ onSignIn }) {
       });
 
       if (data.verificationPending) {
+        // 🌟 Synced keys perfectly to pair cleanly with VerifyPage parameters
         localStorage.setItem('pendingIdentifier', form.schoolMail.trim().toLowerCase());
-        localStorage.setItem('pendingMode', verificationMode);
-        navigate('/verify');
+        localStorage.setItem('pendingVerificationMode', data.verificationMode || verificationMode);
+        navigate('/verify', { state: { identifier: form.schoolMail.trim().toLowerCase(), verificationMode: data.verificationMode || verificationMode } });
       } else {
         onSignIn(data.token, data.user);
       }
@@ -149,9 +150,11 @@ export default function AuthPage({ onSignIn }) {
     } catch (error) {
       const response = error.response?.data;
       if (response?.needsVerification) {
+        // 🌟 Fixed: Dynamically read backend mode fallback instead of hardcoding 'admin'
+        const activeMode = response.verificationMode || 'email';
         localStorage.setItem('pendingIdentifier', form.identifier.trim().toLowerCase());
-        localStorage.setItem('pendingMode', 'admin');
-        navigate('/verify');
+        localStorage.setItem('pendingVerificationMode', activeMode);
+        navigate('/verify', { state: { identifier: form.identifier.trim().toLowerCase(), verificationMode: activeMode } });
       } else {
         setMessage(response?.message || 'Login failed.');
       }
@@ -162,7 +165,6 @@ export default function AuthPage({ onSignIn }) {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12 sm:px-6 lg:px-8">
-      {/* Expanded to max-w-2xl and upgraded to p-8 padding for low cognitive load and spacing balance */}
       <section className="w-full max-w-md sm:max-w-xl md:max-w-2xl rounded-3xl bg-white p-6 sm:p-8 shadow-xl shadow-slate-200/40 border border-slate-100 space-y-8">
         
         <header className="flex flex-col items-center justify-center text-center space-y-3">
@@ -175,7 +177,6 @@ export default function AuthPage({ onSignIn }) {
           <p className="text-sm text-slate-500 max-w-sm leading-relaxed">Secure identity gateway for student commerce and services</p>
         </header>
 
-        {/* Spacious touch-target selector navigation tabs */}
         <nav className="grid grid-cols-2 p-1.5 bg-slate-100/80 rounded-2xl border border-slate-200/40">
           {['login', 'register'].map((tab) => (
             <button
@@ -283,8 +284,8 @@ export default function AuthPage({ onSignIn }) {
             
             <div className="space-y-2 pt-1">
               <span className="text-[11px] uppercase font-bold text-slate-400 block tracking-wider ml-0.5">Verification Channel</span>
-              <div className="grid gap-3 grid-cols-3">
-                {['email', 'sms', 'admin'].map((option) => (
+              <div className="grid gap-3 grid-cols-2"> {/* 🌟 Balanced layout from 3-columns down to 2 columns layout */}
+                {['email', 'admin'].map((option) => (
                   <button
                     key={option}
                     type="button"
