@@ -3,8 +3,9 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const ActivityLog = require('../models/ActivityLog');
-const Request = require('../models/Request'); 
+const Request = require('../models/Request');
 const Report = require('../models/Report');
+const { sendEmailOTP } = require('../services/otpService');
 
 const router = express.Router();
 
@@ -99,6 +100,53 @@ router.post('/register', async (req, res) => {
       verificationCode: code,
       verified: false, 
     });
+
+    // Send welcome email with verification code
+    if (mode === 'email' && code) {
+      try {
+        const welcomeHtml = `
+          <div style="font-family: sans-serif; padding: 20px; color: #334155; max-width: 500px; border: 1px solid #e2e8f0; border-radius: 12px;">
+            <h2 style="color: #059669; font-weight: 900; margin-bottom: 4px;">Welcome to Campus Marketplace! 🎉</h2>
+            <p style="font-size: 14px; font-weight: 600; color: #64748b; margin-top: 0;">Student Community Trading Platform</p>
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+            <p style="font-size: 14px; font-weight: 500; line-height: 1.5;">Hi <strong>${firstName}</strong>,</p>
+            <p style="font-size: 14px; font-weight: 500; line-height: 1.5;">Thank you for joining Campus Marketplace! We're excited to have you as part of our trusted student community.</p>
+            <p style="font-size: 14px; font-weight: 500; line-height: 1.5;">To complete your registration, please verify your account using the security code below:</p>
+            <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0;">
+              <span style="font-size: 28px; font-weight: 900; letter-spacing: 4px; color: #0f172a;">${code}</span>
+            </div>
+            <p style="font-size: 12px; font-weight: 600; color: #64748b; line-height: 1.5;">This code will expire in 10 minutes. If you didn't create this account, please contact us immediately.</p>
+            <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+            <p style="font-size: 12px; color: #94a3b8; line-height: 1.4;">
+              <strong>Campus Marketplace Team</strong><br/>
+              Connecting Students. Building Community. 📱
+            </p>
+          </div>
+        `;
+
+        const mailOptions = {
+          from: `"Campus Marketplace" <${process.env.EMAIL_USER}>`,
+          to: normalizedEmail,
+          subject: `Welcome ${firstName}! Verify Your Campus Marketplace Account`,
+          html: welcomeHtml,
+        };
+
+        const nodemailer = require('nodemailer');
+        const transporter = nodemailer.createTransport({
+          service: 'gmail',
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASSWORD,
+          },
+        });
+
+        await transporter.sendMail(mailOptions);
+        console.log(`✉️ Registration Welcome Email Sent -> [${normalizedEmail}]`);
+      } catch (emailError) {
+        console.error(`⚠️ Welcome email failed for ${normalizedEmail}:`, emailError.message);
+        // Don't fail registration if email fails
+      }
+    }
 
     if (mode === 'admin') {
       await Request.create({
@@ -215,6 +263,55 @@ router.post('/confirm-verification', async (req, res) => {
     user.verified = true;
     user.verificationCode = null;
     await user.save();
+
+    // Send verification success email
+    try {
+      const successHtml = `
+        <div style="font-family: sans-serif; padding: 20px; color: #334155; max-width: 500px; border: 1px solid #e2e8f0; border-radius: 12px;">
+          <h2 style="color: #059669; font-weight: 900; margin-bottom: 4px;">Account Verified! ✅</h2>
+          <p style="font-size: 14px; font-weight: 600; color: #64748b; margin-top: 0;">Campus Marketplace</p>
+          <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+          <p style="font-size: 14px; font-weight: 500; line-height: 1.5;">Hi <strong>${user.firstName}</strong>,</p>
+          <p style="font-size: 14px; font-weight: 500; line-height: 1.5;">Your account has been successfully verified! You're now ready to buy and sell on Campus Marketplace.</p>
+          <div style="background-color: #ecfdf5; border: 1px solid #d1fae5; border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0;">
+            <p style="font-size: 16px; font-weight: 700; color: #059669; margin: 0;">Welcome to the community! 🎉</p>
+          </div>
+          <p style="font-size: 14px; font-weight: 500; color: #475569; line-height: 1.6;">
+            <strong>What's Next?</strong><br/>
+            • Browse listings from verified students<br/>
+            • Create your first listing<br/>
+            • Connect with the student community
+          </p>
+          <hr style="border: 0; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+          <p style="font-size: 12px; color: #94a3b8; line-height: 1.4;">
+            <strong>Campus Marketplace Team</strong><br/>
+            Connecting Students. Building Community. 📱
+          </p>
+        </div>
+      `;
+
+      const mailOptions = {
+        from: `"Campus Marketplace" <${process.env.EMAIL_USER}>`,
+        to: user.schoolMail,
+        subject: `Account Verified - Welcome to Campus Marketplace, ${user.firstName}!`,
+        html: successHtml,
+      };
+
+      const nodemailer = require('nodemailer');
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASSWORD,
+        },
+      });
+
+      await transporter.sendMail(mailOptions);
+      console.log(`✉️ Account Verification Confirmation Email Sent -> [${user.schoolMail}]`);
+    } catch (emailError) {
+      console.error(`⚠️ Confirmation email failed for ${user.schoolMail}:`, emailError.message);
+      // Don't fail verification if email fails
+    }
 
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET || 'your-secret-key', { expiresIn: '7d' });
     if (ActivityLog) await ActivityLog.create({ user: user._id, action: 'confirm-verification', details: 'Verified' });
