@@ -55,7 +55,7 @@ export default function VerifyPage({ onUpdateUser }) {
     setLoading(true);
     setMessage('');
     try {
-      const response = await api.post('/api/auth/confirm-verification', {
+      const response = await api.post('/auth/confirm-verification', {
         identifier,
         code
       });
@@ -80,7 +80,7 @@ export default function VerifyPage({ onUpdateUser }) {
     setLoading(true);
     setMessage('');
     try {
-      const response = await api.post('/api/auth/request-verification', { identifier });
+      const response = await api.post('/auth/request-verification', { identifier });
       setMessage(response.data?.message || 'A new verification code has been sent.');
     } catch (err) {
       setMessage(err.response?.data?.message || 'Could not send verification code.');

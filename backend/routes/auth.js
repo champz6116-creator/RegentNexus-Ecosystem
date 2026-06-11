@@ -5,7 +5,7 @@ const User = require('../models/User');
 const ActivityLog = require('../models/ActivityLog');
 const Request = require('../models/Request');
 const Report = require('../models/Report');
-const { sendEmailOTP } = require('../services/otpService');
+const { sendEmailOTP, sendPasswordResetEmail } = require('../services/otpService');
 
 const router = express.Router();
 
@@ -28,6 +28,15 @@ router.post('/request-password-otp', async (req, res) => {
     otpStore[email] = { code, timestamp: Date.now(), attempts: 0 };
 
     console.log(`Password reset OTP for ${email}: ${code}`);
+
+    // Send password reset email
+    try {
+      await sendPasswordResetEmail(email, code);
+    } catch (emailError) {
+      console.error(`⚠️ Password reset email failed for ${email}:`, emailError.message);
+      return res.status(500).json({ message: 'Failed to send password reset email. Please try again later.' });
+    }
+
     res.json({ message: 'Verification code sent to your email', success: true });
   } catch (err) {
     res.status(500).json({ message: 'Failed to send verification code', error: err.message });
@@ -241,6 +250,15 @@ router.post('/request-verification', async (req, res) => {
     await user.save();
 
     console.log(`New verification code (${selectedMode}) for ${user.schoolMail}: ${newCode}`);
+
+    if (selectedMode === 'email') {
+      try {
+        await sendEmailOTP(user.schoolMail, newCode);
+      } catch (emailError) {
+        console.error(`⚠️ Resend verification email failed for ${user.schoolMail}:`, emailError.message);
+        return res.status(500).json({ message: 'Failed to send verification email. Please try again later.' });
+      }
+    }
 
     if (ActivityLog) {
       await ActivityLog.create({ user: user._id, action: 'request-verification', details: `Sent via ${selectedMode}` });
