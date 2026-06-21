@@ -147,7 +147,7 @@ export default function AdminPage() {
         {/* Title Banner */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2">
+            <h1 className="text-2xl font-black tracking-tight flex items-center gap-2 text-slate-900 dark:text-white">
               <ShieldAlert className="text-emerald-600 dark:text-emerald-500" size={26} />
               Admin Control Panel
             </h1>

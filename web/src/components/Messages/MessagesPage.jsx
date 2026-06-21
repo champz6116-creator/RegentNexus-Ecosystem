@@ -342,7 +342,7 @@ export default function MessagesPage({ user }) {
         {/* Sidebar Panel */}
         <aside className={`w-full md:w-1/3 border-r border-slate-200 dark:border-slate-800 flex flex-col bg-slate-50/50 dark:bg-slate-950/20 ${mobileShowChat ? 'hidden md:flex' : 'flex'}`}>
           <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-            <h2 className="font-black text-sm tracking-tight flex items-center gap-2">
+            <h2 className="font-black text-sm tracking-tight flex items-center gap-2 text-slate-900 dark:text-white">
               <MessageSquare className="text-emerald-600 dark:text-emerald-500" size={16} />
               Ecosystem Chat Hub
             </h2>
@@ -350,9 +350,9 @@ export default function MessagesPage({ user }) {
 
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {loadingChats ? (
-              <div className="text-center text-[10px] uppercase font-bold tracking-widest py-8 text-slate-400">Loading channels...</div>
+              <div className="text-center text-[10px] uppercase font-bold tracking-widest py-8 text-slate-900 dark:text-slate-100">Loading channels...</div>
             ) : conversations.length === 0 && !recipientId ? (
-              <div className="text-center text-xs py-12 text-slate-400 font-medium px-4 flex flex-col items-center justify-center gap-2">
+              <div className="text-center text-xs py-12 text-slate-900 dark:text-slate-100 font-medium px-4 flex flex-col items-center justify-center gap-2">
                 <Inbox size={20} className="opacity-50" />
                 No active campus negotiations found.
               </div>
@@ -421,7 +421,7 @@ export default function MessagesPage({ user }) {
                     >
                       {activeChat.participant?.firstName} {activeChat.participant?.lastName}
                     </h3>
-                    <span className="text-[10px] font-bold text-slate-400 block mt-0.5 truncate">
+                    <span className="text-[10px] font-bold text-slate-900 dark:text-slate-100 block mt-0.5 truncate">
                       Regarding: <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">{activeChat.contextItem || 'General Exchange'}</span>
                     </span>
                   </div>
@@ -447,7 +447,7 @@ export default function MessagesPage({ user }) {
                 )}
 
                 {loadingMessages ? (
-                  <div className="text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest py-4">Loading interaction stream...</div>
+                  <div className="text-center text-[10px] font-bold text-slate-900 dark:text-slate-100 uppercase tracking-widest py-4">Loading interaction stream...</div>
                 ) : (
                   messages.map((msg, idx) => {
                     const msgSenderId = msg.senderId || msg.sender;
@@ -514,10 +514,10 @@ export default function MessagesPage({ user }) {
               </form>
             </>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-400">
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-900 dark:text-slate-100">
               <ShieldAlert size={32} className="text-slate-300 dark:text-slate-700 mb-2" />
               <p className="text-xs font-bold uppercase tracking-wide">No Chat Selected</p>
-              <p className="text-xs font-medium text-slate-400 max-w-xs mt-1">
+              <p className="text-xs font-medium max-w-xs mt-1">
                 Select a talk stream from the sidebar channels panel to review ongoing discussions.
               </p>
             </div>
@@ -540,7 +540,7 @@ export default function MessagesPage({ user }) {
                   </button>
                 </div>
                 
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-semibold leading-relaxed">
+                <p className="text-[11px] text-slate-900 dark:text-slate-100 font-semibold leading-relaxed">
                   Please specify any safety discrepancies or descriptive notes regarding this peer negotiation sequence for safety validation.
                 </p>
 
