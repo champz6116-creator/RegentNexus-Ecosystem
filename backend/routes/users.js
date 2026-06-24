@@ -246,4 +246,84 @@ router.post('/submit-report', verifyToken, async (req, res) => {
   }
 });
 
+// =========================================================================
+// CART MUTATION ROUTES
+// Mounted at /api/users — already protected by verifyToken in server.js
+// =========================================================================
+
+/**
+ * DELETE /api/users/cart/remove/:itemId
+ * Removes a single item from the authenticated user's cart array
+ */
+router.delete('/cart/remove/:itemId', async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+
+    user.cart = user.cart.filter(
+      (entry) => entry.item && entry.item.toString() !== req.params.itemId
+    );
+    user.markModified('cart');
+    await user.save();
+
+    return res.status(200).json({ user, message: 'Item removed from cart.' });
+  } catch (err) {
+    console.error('Cart remove error:', err);
+    return res.status(500).json({ message: 'Failed to remove item from cart.', error: err.message });
+  }
+});
+
+/**
+ * DELETE /api/users/cart/clear
+ * Empties the entire cart for the authenticated user
+ */
+router.delete('/cart/clear', async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+
+    user.cart = [];
+    user.markModified('cart');
+    await user.save();
+
+    return res.status(200).json({ user, message: 'Cart cleared successfully.' });
+  } catch (err) {
+    console.error('Cart clear error:', err);
+    return res.status(500).json({ message: 'Failed to clear cart.', error: err.message });
+  }
+});
+
+/**
+ * PUT /api/users/cart/update
+ * Updates the quantity of a specific item in the authenticated user's cart
+ * Body: { itemId: String, quantity: Number }
+ */
+router.put('/cart/update', async (req, res) => {
+  try {
+    const { itemId, quantity } = req.body;
+    if (!itemId || quantity === undefined) {
+      return res.status(400).json({ message: 'itemId and quantity are required.' });
+    }
+
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+
+    const entry = user.cart.find(
+      (c) => c.item && c.item.toString() === itemId
+    );
+
+    if (!entry) return res.status(404).json({ message: 'Item not found in cart.' });
+
+    const newQty = Math.max(1, parseInt(quantity));
+    entry.quantity = newQty;
+    user.markModified('cart');
+    await user.save();
+
+    return res.status(200).json({ user, message: 'Cart quantity updated.' });
+  } catch (err) {
+    console.error('Cart update error:', err);
+    return res.status(500).json({ message: 'Failed to update cart quantity.', error: err.message });
+  }
+});
+
 module.exports = router;

@@ -147,7 +147,7 @@ export default function App() {
           <Route path="/home" element={<HomePage />} />
           <Route path="/listings" element={<ListingsPage />} />
           <Route path="/listings/:itemId" element={<DetailedScreen user={user} onUpdateUser={handleUserUpdate} />} />
-          <Route path="/cart" element={<CartPage user={user} />} />
+          <Route path="/cart" element={<CartPage user={user} onUpdateUser={handleUserUpdate} />} />
           <Route path="/transactions" element={<TransactionsPage />} />
           
           {/* Linked updates directly to global state hooks */}
