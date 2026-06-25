@@ -230,24 +230,28 @@ export default function CartPage({ user, onUpdateUser }) {
 
   // ── Cart mutations ───────────────────────────────────────────────────────────
 
-  const handleRemoveFromCart = async (itemId) => {
-    // Coerce to a plain string — Mongoose ObjectId objects must be serialised
-    // before use as a route param, otherwise Express receives "[object Object]"
-    // and the backend filter never finds a match.
+    const handleRemoveFromCart = async (itemId) => {
+    // 1. Coerce to a plain string to prevent "[object Object]" serialization bugs
     const idStr = String(itemId);
+    
     try {
+      // 2. Call exact backend route with string ID
       const response = await api.delete(`/users/cart/remove/${idStr}`);
-      // Only update state after a confirmed 200 OK from the backend
+      
+      // 3. Hydrate state ONLY after a confirmed 200 OK success from the server
       if (response.status === 200) {
-        // Apply the local filter using the same string comparison
+        // Apply the local filter using the same strict string comparison
         setCartItems((prev) =>
           prev.filter((ci) => String(ci.item?._id || ci.item) !== idStr)
         );
-        // Propagate the authoritative updated user to global state
-        if (onUpdateUser) onUpdateUser(response.data.user || response.data);
+        
+        // Propagate the authoritative updated user object to the global App state
+        if (onUpdateUser) {
+          onUpdateUser(response.data.user || response.data);
+        }
       }
     } catch (error) {
-      // Log the exact backend error payload for diagnosis
+      // 4. Print exact server failure payload or JWT auth rejection
       console.error(
         '[CartPage] handleRemoveFromCart failed:',
         error.response?.data ?? error.message
@@ -288,13 +292,20 @@ export default function CartPage({ user, onUpdateUser }) {
 
   const handleClearCart = async () => {
     try {
+      // 1. Match exact mount path
       const response = await api.delete('/users/cart/clear');
-      // Only wipe the local state after the backend confirms the clear
+      
+      // 2. Hydrate UI ONLY after confirmed 200 OK success
       if (response.status === 200) {
         setCartItems([]);
-        if (onUpdateUser) onUpdateUser(response.data.user || response.data);
+        
+        // Propagate authoritative wipe to global App state
+        if (onUpdateUser) {
+          onUpdateUser(response.data.user || response.data);
+        }
       }
     } catch (error) {
+      // 3. Print exact server failure payload or JWT auth rejection
       console.error(
         '[CartPage] handleClearCart failed:',
         error.response?.data ?? error.message
