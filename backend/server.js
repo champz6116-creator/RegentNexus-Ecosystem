@@ -73,7 +73,7 @@ app.use('/api/listings', verifyToken, itemRoutes);
 app.use('/api/reports', verifyToken, reportRoutes);
 app.use('/api/admin', verifyToken, adminRoutes);
 app.use('/api/transactions', verifyToken, transactionRoutes);
-app.use('/api/messages', messageRoutes);
+app.use('/api/messages', verifyToken, messageRoutes);
 
 // Frontend static asset serving
 app.use(express.static(path.join(__dirname, '../web/dist')));
@@ -89,11 +89,11 @@ io.on('connection', (socket) => {
   console.log(`🔌 Socket Connected: ${socket.id}`);
 
   // Secure identity mapping using clean type casting wrappers
-  socket.on('join_room', (userId) => {
-    if (userId) {
-      const cleanUserId = userId.toString().trim();
-      socket.join(cleanUserId);
-      console.log(`👤 User [${cleanUserId}] securely joined their private communication room.`);
+  socket.on('join_room', (roomId) => {
+    if (roomId) {
+      const cleanRoomId = roomId.toString().trim();
+      socket.join(cleanRoomId);
+      console.log(`🔌 Socket ${socket.id} joined room: [${cleanRoomId}]`);
     }
   });
 

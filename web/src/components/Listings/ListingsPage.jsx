@@ -231,7 +231,7 @@ export default function ListingsPage() {
 
       {/* Management Workspace Area */}
       <section className="rounded-3xl bg-white dark:bg-slate-900 p-6 shadow-sm border border-slate-100 dark:border-slate-800">
-        <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100 mb-5">My Store Workspace</h2>
+        <h2 className="text-2xl font-black tracking-tight text-slate-900 dark:text-slate-100 mb-5">My Listings</h2>
         <div className="space-y-4">
           {listings.length === 0 ? (
             <div className="text-center py-8 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800/50 p-4">

@@ -24,22 +24,23 @@ export default function PeerProfileView({ currentAccount }) {
       if (!userId) return;
       try {
         setLoadingProfile(true);
-        
+
         // 1. Fetch reviewed target user details
         const userRes = await api.get(`/users/${userId}`);
-        setProfileUser(userRes.data?.user || userRes.data);
+        const fetchedUser = userRes.data?.user || userRes.data;
+        setProfileUser(fetchedUser);
 
-        // 2. Load historical score configuration written by this specific user pair
-        try {
-          const reviewRes = await api.get(`/ratings/my-review-for/${userId}`);
-          if (reviewRes.data) {
-            setScore(reviewRes.data.score);
-            setFeedback(reviewRes.data.feedback || '');
+        // 2. Extract historical score directly from the fetched user's ratings array
+        if (fetchedUser?.ratings && currentAccount?._id) {
+          const myPastRating = fetchedUser.ratings.find(
+            (r) => (r.rater?._id || r.rater) === currentAccount._id
+          );
+          if (myPastRating) {
+            setScore(myPastRating.score);
+            setFeedback(myPastRating.comment || '');
             setHasReviewedBefore(true);
             setIsEditing(false);
           }
-        } catch (err) {
-          console.log("No previous community evaluation score found for this peer connection.");
         }
       } catch (error) {
         console.error("Failed to load user information context:", error);
@@ -49,7 +50,7 @@ export default function PeerProfileView({ currentAccount }) {
     };
 
     fetchProfileAndReviewData();
-  }, [userId]);
+  }, [userId, currentAccount]);
 
   const handleReviewSubmit = async (e) => {
     e.preventDefault();
@@ -61,27 +62,28 @@ export default function PeerProfileView({ currentAccount }) {
     setStatus({ type: '', message: '' });
 
     try {
-      const { data } = await api.post('/ratings/rate-peer', {
-        targetUser: userId,
+      // FIX: Changed URL route to match /api/users/:id/rate
+      // FIX: Changed payload property "feedback" to "comment" to align with your schema array
+      const { data } = await api.post(`/users/${userId}/rate`, {
         score,
-        feedback: feedback.trim()
+        comment: feedback.trim()
       });
 
-      // Synchronize overall user ranking scores seamlessly if returned by backend recalculations
-      if (data?.updatedUser) {
-        setProfileUser(data.updatedUser);
+      // Synchronize backend updates onto the local profile component view state
+      if (data?.ratings) {
+        setProfileUser(prev => ({ ...prev, ratings: data.ratings }));
       }
 
-      setStatus({ 
-        type: 'success', 
-        message: hasReviewedBefore ? 'Your community review has been updated.' : 'Your trust review has been published.' 
+      setStatus({
+        type: 'success',
+        message: hasReviewedBefore ? 'Your community review has been updated.' : 'Your trust review has been published.'
       });
       setHasReviewedBefore(true);
       setIsEditing(false);
     } catch (err) {
-      setStatus({ 
-        type: 'error', 
-        message: err.response?.data?.message || 'Failed to sync your review parameters.' 
+      setStatus({
+        type: 'error',
+        message: err.response?.data?.message || "Couldn't save your review. Please try again."
       });
     } finally {
       setLoadingReview(false);
@@ -89,10 +91,10 @@ export default function PeerProfileView({ currentAccount }) {
   };
 
   const handleRemoveReview = async () => {
-    if (!window.confirm("Are you sure you want to delete your trust review? This will immediately reset your contribution to their score calculation.")) return;
+    if (!window.confirm("Are you sure you want to delete your trust review? This will remove your rating from their profile.")) return;
     try {
       const { data } = await api.delete(`/ratings/remove-review/${userId}`);
-      
+
       if (data?.updatedUser) {
         setProfileUser(data.updatedUser);
       }
@@ -108,19 +110,19 @@ export default function PeerProfileView({ currentAccount }) {
   };
 
   const handleInitiateChat = () => {
-  // Use fallback logic to ensure we pass a valid name string
-  const fName = profileUser.firstName || 'Campus';
-  const lName = profileUser.lastName || 'Member';
-  
-  // Construct the URL with the name parameter
-  navigate(
-    `/messages?recipientId=${userId}&sellerName=${encodeURIComponent(fName + ' ' + lName)}`
-  );
+    // Use fallback logic to ensure we pass a valid name string
+    const fName = profileUser.firstName || 'Campus';
+    const lName = profileUser.lastName || 'Member';
+
+    // Construct the URL with the name parameter
+    navigate(
+      `/messages?recipientId=${userId}&sellerName=${encodeURIComponent(fName + ' ' + lName)}`
+    );
   };
-  
+
   if (loadingProfile) {
     return (
-      <div className="flex justify-center items-center min-h-screen text-xs font-bold text-slate-400 uppercase tracking-widest">
+      <div className="flex justify-center items-center min-h-screen text-xs font-bold text-slate-500 uppercase tracking-widest">
         Loading student profile...
       </div>
     );
@@ -129,7 +131,7 @@ export default function PeerProfileView({ currentAccount }) {
   if (!profileUser) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen text-xs font-bold text-rose-500 uppercase tracking-widest">
-        Student account profile not found on campus server.
+        This student profile could not be found.
         <button onClick={() => navigate(-1)} className="mt-4 px-4 py-2 bg-slate-900 text-white rounded-xl">Go Back</button>
       </div>
     );
@@ -137,7 +139,7 @@ export default function PeerProfileView({ currentAccount }) {
 
   return (
     <main className="max-w-5xl mx-auto p-4 space-y-4 text-slate-900 dark:text-slate-100 transition-colors duration-200">
-      <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition">
+      <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 transition">
         <ArrowLeft size={14} /> Back
       </button>
 
@@ -154,11 +156,45 @@ export default function PeerProfileView({ currentAccount }) {
               )}
               <div className="flex-1 space-y-2">
                 <div>
-                  <h2 className="text-xl font-black">{profileUser.firstName} {profileUser.lastName}</h2>
-                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest mt-0.5">
-                    {profileUser.role || 'Student'} • Regent Community Peer
+                  <h2 className="text-xl font-black text-slate-950 dark:text-slate-50">{profileUser.firstName} {profileUser.lastName}</h2>
+                  <p className="text-[10px] text-slate-800 dark:text-slate-200 font-black uppercase tracking-widest mt-1">                    {profileUser.role || 'Student'} • Regent Community Peer
                   </p>
                 </div>
+
+                {/* --- Peer Average Rating Calculation Block --- */}
+                {profileUser?.ratings && profileUser.ratings.length > 0 ? (
+                  (() => {
+                    const totalScore = profileUser.ratings.reduce((sum, r) => sum + r.score, 0);
+                    const averageRating = (totalScore / profileUser.ratings.length).toFixed(1);
+
+                    return (
+                      <div className="flex items-center gap-1.5 mt-1.5 bg-slate-50 dark:bg-slate-950/60 w-fit px-3 py-1 rounded-full border border-slate-200/60 dark:border-slate-800/60">
+                        <div className="flex items-center space-x-0.5">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              size={12}
+                              fill={Math.round(averageRating) >= star ? '#eab308' : 'transparent'}
+                              className={Math.round(averageRating) >= star ? 'text-yellow-500' : 'text-slate-200 dark:text-slate-700'}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-xs font-black text-slate-700 dark:text-slate-300">
+                          {averageRating}
+                        </span>
+                        <span className="text-[10px] text-slate-600 dark:text-slate-400 font-bold tracking-tight">
+                          ({profileUser.ratings.length} {profileUser.ratings.length === 1 ? 'review' : 'reviews'})
+                        </span>
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-1.5 italic">
+                    No Peer Ratings Contributed Yet
+                  </div>
+                )}
+                {/* --- End of Rating Calculation Block --- */}
+
                 {currentAccount?._id !== profileUser._id && (
                   <button onClick={handleInitiateChat} className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-2xs">
                     <MessageSquare size={14} /> Message Student
@@ -169,16 +205,16 @@ export default function PeerProfileView({ currentAccount }) {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800/60 flex items-center space-x-3">
-                <User size={16} className="text-slate-400" />
+                <User size={16} className="text-slate-500 dark:text-slate-400" />
                 <div>
-                  <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider block">Student Number</span>
+                  <span className="text-[9px] font-extrabold uppercase text-slate-500 dark:text-slate-400 tracking-wider block">Student Number</span>
                   <span className="text-xs font-bold">{profileUser.schoolId || 'Protected / Hidden'}</span>
                 </div>
               </div>
               <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800/60 flex items-center space-x-3">
-                <Mail size={16} className="text-slate-400" />
+                <Mail size={16} className="text-slate-500 dark:text-slate-400" />
                 <div className="overflow-hidden">
-                  <span className="text-[9px] font-extrabold uppercase text-slate-400 tracking-wider block">Academic Mail Address</span>
+                  <span className="text-[9px] font-extrabold uppercase text-slate-500 dark:text-slate-400 tracking-wider block">Academic Mail Address</span>
                   <span className="text-xs font-bold block truncate">{profileUser.schoolMail}</span>
                 </div>
               </div>
@@ -194,14 +230,14 @@ export default function PeerProfileView({ currentAccount }) {
                   <ShieldCheck className="text-emerald-600 dark:text-emerald-500" size={18} />
                   Campus Trust Score
                 </h3>
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 font-medium mt-0.5">
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 font-medium mt-0.5">
                   Reviews are edit-friendly and updated instantly.
                 </p>
               </div>
               {hasReviewedBefore && !isEditing && (
                 <div className="flex items-center space-x-1">
-                  <button onClick={() => setIsEditing(true)} className="p-1.5 text-slate-400 hover:text-emerald-600 rounded-lg transition"><Edit2 size={13} /></button>
-                  <button onClick={handleRemoveReview} className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg transition"><Trash2 size={13} /></button>
+                  <button onClick={() => setIsEditing(true)} className="p-1.5 text-slate-500 hover:text-emerald-600 rounded-lg transition"><Edit2 size={13} /></button>
+                  <button onClick={handleRemoveReview} className="p-1.5 text-slate-500 hover:text-rose-500 rounded-lg transition"><Trash2 size={13} /></button>
                 </div>
               )}
             </div>
@@ -211,7 +247,7 @@ export default function PeerProfileView({ currentAccount }) {
             )}
 
             {currentAccount?._id === profileUser._id ? (
-              <p className="text-xs font-bold text-slate-400 text-center py-4 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
+              <p className="text-xs font-bold text-slate-500 dark:text-slate-400 text-center py-4 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">
                 You cannot evaluate your own profile metrics.
               </p>
             ) : hasReviewedBefore && !isEditing ? (
@@ -220,16 +256,16 @@ export default function PeerProfileView({ currentAccount }) {
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Star key={star} size={14} fill={score >= star ? '#059669' : 'transparent'} className={score >= star ? 'text-emerald-600' : 'text-slate-200 dark:text-slate-700'} />
                   ))}
-                  <span className="text-[10px] text-slate-400 font-bold pl-1">Your Rating</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold pl-1">Your Rating</span>
                 </div>
                 <p className="text-xs font-medium text-slate-700 dark:text-slate-300 italic leading-relaxed">
-                  {feedback ? `"${feedback}"` : <span className="text-slate-400 not-italic">No comment left on this user profile.</span>}
+                  {feedback ? `"${feedback}"` : <span className="text-slate-500 dark:text-slate-400 not-italic">No comment left on this user profile.</span>}
                 </p>
               </div>
             ) : (
               <form onSubmit={handleReviewSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1.5">Tap to rate trading experience</label>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1.5">Tap to rate trading experience</label>
                   <div className="flex items-center space-x-1.5" onMouseLeave={() => setHoverScore(0)}>
                     {[1, 2, 3, 4, 5].map((star) => (
                       <button key={star} type="button" onClick={() => setScore(star)} onMouseEnter={() => setHoverScore(star)} className="transition-transform active:scale-95 text-slate-200 dark:text-slate-800">
@@ -240,7 +276,7 @@ export default function PeerProfileView({ currentAccount }) {
                 </div>
 
                 <div>
-                  <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="Provide feedback regarding response speed, deal clarity, or item safety parameters..." maxLength={250} rows={3} className="w-full text-xs font-bold p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-50 placeholder-slate-400 outline-none focus:border-emerald-500 resize-none transition-colors duration-150" />
+                  <textarea value={feedback} onChange={(e) => setFeedback(e.target.value)} placeholder="How was your experience? Response time, clarity, item condition..." maxLength={250} rows={3} className="w-full text-xs font-bold p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-slate-50 placeholder-slate-500 dark:placeholder-slate-400 outline-none focus:border-emerald-500 resize-none transition-colors duration-150" />
                 </div>
 
                 <button type="submit" disabled={loadingReview} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-4 rounded-xl text-xs transition disabled:opacity-50">

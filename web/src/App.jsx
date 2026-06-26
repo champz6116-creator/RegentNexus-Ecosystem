@@ -118,7 +118,7 @@ export default function App() {
   if (loadingAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-900 text-slate-400 text-xs font-bold uppercase tracking-widest">
-        Loading RegentNexus Ecosystem...
+        Loading RegentNexus...
       </div>
     );
   }

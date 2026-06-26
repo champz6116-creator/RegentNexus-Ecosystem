@@ -9,6 +9,7 @@ export default function DetailedScreen({ user, onUpdateUser }) {
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
+  
 
   useEffect(() => {
     const fetchItemDetails = async () => {

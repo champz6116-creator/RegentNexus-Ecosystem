@@ -176,30 +176,45 @@ router.delete('/:id', verifyToken, async (req, res) => {
   }
 });
 
-// Rate user
+// Rate user (Enforces a single rating per peer combination)
 router.post('/:id/rate', verifyToken, async (req, res) => {
   try {
     const { score, comment } = req.body;
+    const targetUserId = req.params.id;
+    const raterId = req.userId;
 
-    const target = await User.findById(req.params.id);
+    if (raterId === targetUserId) {
+      return res.status(400).json({ message: 'Security Violation: You cannot rate yourself.' });
+    }
+
+    const target = await User.findById(targetUserId);
     if (!target) {
       return res.status(404).json({ message: 'Target user not found' });
     }
 
-    target.ratings.push({
-      rater: req.userId,
-      score,
-      comment
-    });
+    // Check if this rater has already left a review on this specific target profile
+    const existingRatingIndex = target.ratings.findIndex(
+      (r) => r.rater && r.rater.toString() === raterId.toString()
+    );
+
+    if (existingRatingIndex > -1) {
+      // Overwrite the existing record with the new evaluation data
+      target.ratings[existingRatingIndex].score = score;
+      target.ratings[existingRatingIndex].comment = comment;
+    } else {
+      // If clean interaction, push new sub-document map
+      target.ratings.push({ rater: raterId, score, comment });
+    }
+
     await target.save();
 
     res.json({
-      message: 'Rating submitted successfully',
+      message: 'Rating processed successfully',
       ratings: target.ratings
     });
   } catch (error) {
     console.error('Rating error:', error);
-    res.status(500).json({ message: 'Failed to submit rating', error: error.message });
+    res.status(500).json({ message: 'Failed to process peer rating', error: error.message });
   }
 });
 

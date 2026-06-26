@@ -16,7 +16,7 @@ function HelpCenterSettingsCard() {
   const handleSubmitTicket = async (e) => {
     e.preventDefault();
     if (!feedback.trim() || !schoolMail.trim()) {
-      return alert("Please fulfill all support ticket parameters before filing.");
+      return alert("Please fill in your email and message.");
     }
 
     try {
@@ -27,7 +27,7 @@ function HelpCenterSettingsCard() {
       setFeedback('');
     } catch (err) {
       console.error("Filing help instance faulted.", err);
-      alert(err.response?.data?.message || "Could not dispatch assistance request.");
+      alert(err.response?.data?.message || "Couldn't send your help request.");
     } finally {
       setSubmitting(false);
     }
@@ -37,7 +37,7 @@ function HelpCenterSettingsCard() {
     <section className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-xs space-y-4">
       <h3 className="text-base font-black flex items-center gap-2">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-[18px] h-[18px] text-emerald-600"><path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" /></svg>
-        Campus Help Desk & System Support
+        Help & Support
       </h3>
 
       {success ? (
@@ -52,15 +52,15 @@ function HelpCenterSettingsCard() {
       ) : (
         <form onSubmit={handleSubmitTicket} className="space-y-3 max-w-md">
           <div>
-            <label className="block text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase mb-1">Registered Institutional Email</label>
+            <label className="block text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase mb-1">Registered School Email</label>
             <StandardTextInput type="email" placeholder="e.g., student@regent.edu.gh" value={schoolMail} onChange={(e) => setSchoolMail(e.target.value)} required />
           </div>
 
           <div>
-            <label className="block text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase mb-1">Issue Description / Feedback Details</label>
+            <label className="block text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase mb-1">What do you need help with?</label>
             <textarea 
               rows={4}
-              placeholder="Provide clean contextual data here describing account, listing, or layout interaction bugs..."
+              placeholder="Describe the issue you're having..."
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
               className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-50 focus:outline-none focus:border-emerald-500 transition font-medium resize-none"
@@ -69,7 +69,7 @@ function HelpCenterSettingsCard() {
           </div>
 
           <button type="submit" disabled={submitting} className="w-full py-2.5 bg-slate-950 dark:bg-emerald-600 text-white hover:opacity-90 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 disabled:opacity-50 shadow-xs">
-            <span>{submitting ? 'Dispatching Ticket Engine...' : 'Initialize Support Ticket'}</span>
+            <span>{submitting ? 'Submitting...' : 'Submit Help Request'}</span>
           </button>
         </form>
       )}

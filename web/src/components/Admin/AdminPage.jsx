@@ -573,9 +573,9 @@ export default function AdminPage() {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <span className="text-[10px] uppercase tracking-widest font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded-md">
-                  Report Compiler
+                  Export Reports
                 </span>
-                <h3 className="text-base font-black mt-1 text-slate-900 dark:text-slate-50">Compile System Records</h3>
+                <h3 className="text-base font-black mt-1 text-slate-900 dark:text-slate-50">Download Report</h3>
               </div>
               <button onClick={() => setShowReportModal(false)} className="text-slate-400 hover:text-slate-600 text-xs font-bold">✕ Exit</button>
             </div>
@@ -598,7 +598,7 @@ export default function AdminPage() {
               disabled={loadingGrid}
               className="w-full py-2 mb-4 text-xs font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition flex items-center justify-center gap-1.5"
             >
-              {loadingGrid ? 'Compiling data...' : 'Generate Report Preview'}
+              {loadingGrid ? 'Loading report...' : 'Generate Report Preview'}
             </button>
 
             {generatedReportData && (
@@ -643,7 +643,8 @@ export default function AdminPage() {
                   className="w-full mt-2 py-2 text-xs font-bold rounded-xl border border-emerald-600 dark:border-emerald-500 text-white bg-emerald-600 hover:bg-emerald-700 transition flex items-center justify-center gap-1.5"
                 >
                   <Download size={14} />
-                  <span>{downloadingReport ? 'Downloading Asset...' : 'Save File to Machine'}</span>
+                  <span>{downloadingReport ? 'Downloading...
+' : 'Save File to Machine'}</span>
                 </button>
               </div>
             )}

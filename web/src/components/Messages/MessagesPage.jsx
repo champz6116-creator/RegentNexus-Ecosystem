@@ -55,6 +55,34 @@ export default function MessagesPage({ user }) {
     );
   };
 
+  const buildConversationRoomId = (userA, userB) => {
+    const [first, second] = [userA, userB].map(String).sort();
+    return `conversation:${first}:${second}`;
+  };
+
+  const getPeerId = (chat) => {
+    if (!chat) return null;
+    const peerId = chat.participant?._id || chat.participant?.id || chat._id;
+    if (!peerId || peerId === 'new_channel_context' || peerId === 'system') return null;
+    return peerId.toString();
+  };
+
+  const normalizeConversation = (chat) => {
+    const peerId = getPeerId(chat);
+    if (!peerId) return null;
+
+    return {
+      ...chat,
+      _id: peerId,
+      participant: {
+        _id: peerId,
+        firstName: chat.participant?.firstName ?? '',
+        lastName: chat.participant?.lastName ?? '',
+        schoolId: chat.participant?.schoolId
+      }
+    };
+  };
+
   // --- 🌟 SETUP REAL-TIME SOCKET CONNECTION (HYBRID LIVE lifecycle) ---
   useEffect(() => {
     if (!user || !user._id) return; 
@@ -144,6 +172,13 @@ export default function MessagesPage({ user }) {
     };
   }, [user?._id]); 
 
+  useEffect(() => {
+    if (!socketRef.current || !user?._id || !activeChat?.participant?._id) return;
+
+    const conversationRoomId = buildConversationRoomId(user._id, activeChat.participant._id);
+    socketRef.current.emit('join_room', conversationRoomId);
+  }, [user?._id, activeChat?.participant?._id]);
+
   // --- DATE & TIME FORMATTERS ---
   const formatTime = (dateStr) => {
     if (!dateStr) return 'Sent';
@@ -175,7 +210,7 @@ export default function MessagesPage({ user }) {
         reason: reportReason.trim()
       });
       
-      alert('Conversation flagged cleanly for safety evaluation.');
+      alert('Report submitted. Thank you.');
       setReportReason('');
       setShowReportModal(false);
     } catch (err) {
@@ -187,6 +222,8 @@ export default function MessagesPage({ user }) {
 
   // --- Inbox Channel Syncer ---
   useEffect(() => {
+    if (!user?._id) return;
+
     const fetchInboxChannels = async () => {
       const parsedSellerName = rawSellerName && rawSellerName !== 'undefined' 
       ? decodeURIComponent(rawSellerName) 
@@ -196,15 +233,15 @@ export default function MessagesPage({ user }) {
       try {
         setLoadingChats(true);
         const { data } = await api.get('/messages/conversations');
-        backendChats = data?.conversations || data || [];
+        const rawChats = Array.isArray(data?.conversations) ? data.conversations : (Array.isArray(data) ? data : []);
+        backendChats = rawChats.map(normalizeConversation).filter(Boolean);
         setConversations(backendChats);
       } catch (err) {
         console.warn("Failed to resolve communications lists:", err.message);
-        setConversations([]);
       } finally {
         if (recipientId) {
           const matchingChat = backendChats.find(
-            c => c.participant?._id === recipientId || c.participant?.id === recipientId
+            (c) => getPeerId(c) === recipientId.toString()
           );
 
           if (matchingChat) {
@@ -228,27 +265,36 @@ export default function MessagesPage({ user }) {
             }
           }
           setMobileShowChat(true);
-        } else if (backendChats.length > 0 && !activeChat) {
-          setActiveChat(backendChats[0]);
+        } else {
+          setActiveChat((prev) => {
+            const fallback = backendChats.length > 0 ? backendChats[0] : null;
+            if (!prev) return fallback;
+            const refreshed = backendChats.find((c) => getPeerId(c) === getPeerId(prev));
+            return refreshed || prev;
+          });
         }
         setLoadingChats(false);
       }
     };
 
     fetchInboxChannels();
-  }, [recipientId, itemName, rawSellerName, itemId]);
+  }, [user?._id, recipientId, itemName, rawSellerName, itemId]);
 
   // --- Message Log Stream Hook ---
   useEffect(() => {
     const fetchMessageLogs = async () => {
-      if (!activeChat || !activeChat._id || activeChat._id === 'new_channel_context' || activeChat._id === 'system') {
-        setMessages([]);
-        return; 
+      const peerId = getPeerId(activeChat);
+      if (!peerId) {
+        if (activeChat?._id === 'new_channel_context') {
+          setMessages([]);
+        }
+        return;
       }
+
       try {
         setLoadingMessages(true);
-        const { data } = await api.get(`/messages/channel/${activeChat._id}`);
-        const rawHistory = data?.messages || data || [];
+        const { data } = await api.get(`/messages/channel/${peerId}`);
+        const rawHistory = Array.isArray(data?.messages) ? data.messages : (Array.isArray(data) ? data : []);
         setMessages(deduplicateMessages(rawHistory));
       } catch (err) {
         console.error('Failed to load historic channel transmission logs:', err);
@@ -259,7 +305,7 @@ export default function MessagesPage({ user }) {
     };
 
     fetchMessageLogs();
-  }, [activeChat?._id]);
+  }, [activeChat?._id, activeChat?.participant?._id]);
 
   const isChannelLocked = messages.some(m => m.isSystemAction && m.text && m.text.includes('no longer active'));
 
@@ -282,16 +328,16 @@ export default function MessagesPage({ user }) {
         const { data } = await api.post('/messages/initialize', payload);
         setNewMessage('');
         
-        const finalizedChatId = data?.conversationId || data?._id || activeChat.participant._id;
+        const finalizedChatId = data?.conversationId || activeChat.participant._id;
         
-        const structuralActiveChat = {
+        const structuralActiveChat = normalizeConversation({
           _id: finalizedChatId,
           participant: activeChat.participant,
           contextItem: activeChat.contextItem,
           itemId: activeChat.itemId,
           text: currentTypedString,
           timestamp: new Date().toISOString()
-        };
+        });
 
         const incomingMsg = data && data._id ? data : data.message;
 
@@ -344,17 +390,17 @@ export default function MessagesPage({ user }) {
           <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
             <h2 className="font-black text-sm tracking-tight flex items-center gap-2 text-slate-900 dark:text-white">
               <MessageSquare className="text-emerald-600 dark:text-emerald-500" size={16} />
-              Ecosystem Chat Hub
+              Messages
             </h2>
           </div>
 
           <div className="flex-1 overflow-y-auto p-2 space-y-1">
             {loadingChats ? (
-              <div className="text-center text-[10px] uppercase font-bold tracking-widest py-8 text-slate-900 dark:text-slate-100">Loading channels...</div>
+              <div className="text-center text-[10px] uppercase font-bold tracking-widest py-8 text-slate-900 dark:text-slate-100">Loading conversations...</div>
             ) : conversations.length === 0 && !recipientId ? (
               <div className="text-center text-xs py-12 text-slate-900 dark:text-slate-100 font-medium px-4 flex flex-col items-center justify-center gap-2">
                 <Inbox size={20} className="opacity-50" />
-                No active campus negotiations found.
+                No conversations yet.
               </div>
             ) : (
               conversations.map((chat) => {
@@ -378,7 +424,11 @@ export default function MessagesPage({ user }) {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-baseline">
-                        <p className="text-xs truncate max-w-[70%]">{chat.participant?.firstName} {chat.participant?.lastName}</p>
+                        <p className="text-xs truncate max-w-[70%]">
+                          {chat.participant?.firstName || chat.participant?.lastName
+                            ? `${chat.participant?.firstName || ''} ${chat.participant?.lastName || ''}`.trim()
+                            : 'Campus Member'}
+                        </p>
                         {chat.timestamp && (
                           <span className={`text-[8px] font-medium shrink-0 ${isSelected ? 'text-emerald-200' : 'text-slate-400'}`}>
                             {formatTime(chat.timestamp)}
@@ -419,7 +469,9 @@ export default function MessagesPage({ user }) {
                       className="font-black text-sm text-slate-900 dark:text-slate-50 hover:text-emerald-600 dark:hover:text-emerald-400 hover:underline cursor-pointer transition truncate inline-block"
                       onClick={() => navigate(`/peer/${activeChat.participant?._id || activeChat.participant?.id}`)}
                     >
-                      {activeChat.participant?.firstName} {activeChat.participant?.lastName}
+                      {activeChat.participant?.firstName || activeChat.participant?.lastName
+                        ? `${activeChat.participant?.firstName || ''} ${activeChat.participant?.lastName || ''}`.trim()
+                        : 'Campus Member'}
                     </h3>
                     <span className="text-[10px] font-bold text-slate-900 dark:text-slate-100 block mt-0.5 truncate">
                       Regarding: <span className="text-emerald-600 dark:text-emerald-400 font-extrabold">{activeChat.contextItem || 'General Exchange'}</span>
@@ -501,7 +553,7 @@ export default function MessagesPage({ user }) {
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   disabled={isChannelLocked}
-                  placeholder={isChannelLocked ? "This listing channel is closed — Deactivated" : "Type your transaction message here..."}
+                  placeholder={isChannelLocked ? "This chat is closed" : "Type a message..."}
                   className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 px-4 py-3 text-xs font-bold text-slate-900 dark:text-slate-50 placeholder-slate-400 outline-none focus:border-emerald-500 transition-colors disabled:opacity-50"
                 />
                 <button 
@@ -518,7 +570,7 @@ export default function MessagesPage({ user }) {
               <ShieldAlert size={32} className="text-slate-300 dark:text-slate-700 mb-2" />
               <p className="text-xs font-bold uppercase tracking-wide">No Chat Selected</p>
               <p className="text-xs font-medium max-w-xs mt-1">
-                Select a talk stream from the sidebar channels panel to review ongoing discussions.
+               Select a conversation from the sidebar to start chatting.
               </p>
             </div>
           )}
@@ -530,7 +582,7 @@ export default function MessagesPage({ user }) {
                 <div className="flex items-center justify-between text-rose-500 dark:text-rose-400">
                   <div className="flex items-center gap-2">
                     <ShieldAlert size={18} />
-                    <span className="text-xs font-black uppercase tracking-wider">Refine Interaction Moderation Log</span>
+                    <span className="text-xs font-black uppercase tracking-wider">Report Conversation</span>
                   </div>
                   <button 
                     onClick={() => setShowReportModal(false)}
@@ -541,7 +593,7 @@ export default function MessagesPage({ user }) {
                 </div>
                 
                 <p className="text-[11px] text-slate-900 dark:text-slate-100 font-semibold leading-relaxed">
-                  Please specify any safety discrepancies or descriptive notes regarding this peer negotiation sequence for safety validation.
+                  Tell us what happened so we can review this conversation.
                 </p>
 
                 <form onSubmit={handleReportUserSubmit} className="space-y-3">

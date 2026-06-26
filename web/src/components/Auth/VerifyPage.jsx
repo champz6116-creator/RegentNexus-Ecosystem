@@ -33,7 +33,7 @@ export default function VerifyPage({ onUpdateUser }) {
   // Handle absolute fallback route safety mapping
   useEffect(() => {
     if (!identifier) {
-      setMessage('Missing account identity mapping context. Returning to sign-in...');
+      setMessage('Session expired. Returning to sign in...');
       const timer = setTimeout(() => navigate('/login'), 3000);
       return () => clearTimeout(timer);
     }
@@ -108,7 +108,7 @@ export default function VerifyPage({ onUpdateUser }) {
             <span>Back to Sign In</span>
           </button>
           <span className="text-[10px] uppercase font-black tracking-widest px-2.5 py-1 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-800 dark:text-slate-300 border border-slate-200 dark:border-transparent">
-            Security Gate
+            Security Check
           </span>
         </div>
 
@@ -118,12 +118,12 @@ export default function VerifyPage({ onUpdateUser }) {
             {mode === 'admin' ? <Clock size={28} className="animate-pulse" /> : <ShieldCheck size={28} />}
           </div>
           <h2 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-            {mode === 'admin' ? 'Approval Pending' : 'Verify Your Identity'}
+            {mode === 'admin' ? 'Approval Pending' : 'Verify Your Account'}
           </h2>
           <p className="text-xs font-semibold text-slate-700 dark:text-slate-400 max-w-xs mx-auto">
             {mode === 'admin' 
-              ? 'Your account request has been routed to the administration portal workflow configuration.' 
-              : `A verification security parameter has been issued to ${identifier}`}
+              ? 'Your account is waiting for admin approval.' 
+              : `We sent a 6-digit code to ${identifier}`}
           </p>
         </div>
 
@@ -141,7 +141,7 @@ export default function VerifyPage({ onUpdateUser }) {
             <div className="p-4 bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/10 rounded-2xl border border-amber-200 dark:border-amber-900/40 text-center">
               <span className="text-xs font-extrabold text-amber-950 dark:text-amber-400 uppercase tracking-wider block mb-1">ℹ️ Verification Notice</span>
               <p className="text-xs font-bold text-amber-900 dark:text-amber-200 leading-relaxed">
-                Administrators manual confirmation verification is operational. Once verified, your status upgrades automatically to grant workspace marketplace clearance.
+                An administrator will review your account. You can sign in once approved.
               </p>
             </div>
             
@@ -156,7 +156,7 @@ export default function VerifyPage({ onUpdateUser }) {
           <form onSubmit={handleVerifyOTP} className="space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs uppercase font-extrabold tracking-wider text-slate-700 dark:text-slate-400 block">
-                Verification Pin Code
+                  Verification Code
               </label>
               <div className="relative">
                 <input
@@ -176,7 +176,7 @@ export default function VerifyPage({ onUpdateUser }) {
               disabled={loading || !identifier}
               className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-md transition"
             >
-              {loading ? 'Processing Validation...' : 'Confirm Account Verification'}
+              {loading ? 'Verifying...' : 'Confirm & Continue'}
             </button>
 
             <div className="text-center pt-2">
@@ -186,7 +186,7 @@ export default function VerifyPage({ onUpdateUser }) {
                 onClick={handleResendOTP}
                 className="text-xs font-extrabold text-slate-800 dark:text-emerald-400 hover:underline hover:text-slate-900 dark:hover:text-emerald-300 transition"
               >
-                Didn't acquire verification code parameters? Resend via Mail
+                Didn't get a code? Resend email
               </button>
             </div>
           </form>

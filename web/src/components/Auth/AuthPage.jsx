@@ -252,7 +252,7 @@ export default function AuthPage({ onSignIn }) {
             
             <div className="grid gap-4 sm:grid-cols-2">
               <label className="block">
-                <span className="text-xs sm:text-sm font-semibold text-slate-700 tracking-wide block ml-0.5">Security Password</span>
+                <span className="text-xs sm:text-sm font-semibold text-slate-700 tracking-wide block ml-0.5">Password</span>
                 <div className="relative mt-2">
                   <input type={showPassword ? 'text' : 'password'} value={form.password} onChange={(e) => setField('password', e.target.value)} className={`w-full rounded-2xl border bg-slate-50/50 px-4 py-3 text-sm text-slate-900 outline-none transition duration-150 pr-10 focus:bg-white focus:shadow-sm ${errors.password ? 'border-rose-400 bg-rose-50/10 focus:border-rose-500 focus:ring-4 focus:ring-rose-500/5' : 'border-slate-200 focus:border-amber-500'}`} placeholder="••••••••" />
                   <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">

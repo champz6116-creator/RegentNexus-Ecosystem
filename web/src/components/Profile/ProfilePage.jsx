@@ -70,7 +70,7 @@ export default function ProfilePage({ user: initialUser, onUpdateUser }) {
     } catch (err) {
       setStatus({ 
         type: 'error', 
-        message: err.response?.data?.message || 'Failed to sync your profile updates with the server.' 
+        message: err.response?.data?.message || 'Couldn\'t save your profile. Please try again.' 
       });
     } finally {
       setLoading(false);
@@ -82,7 +82,7 @@ export default function ProfilePage({ user: initialUser, onUpdateUser }) {
       <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4 mb-5">
         <div>
           <h2 className="text-2xl font-black tracking-tight">Campus Profile</h2>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Manage your personal RegentNexus identity and marketplace security keys safely.</p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">View and update your campus profile.</p>
         </div>
         
         {!isEditing && (
@@ -177,10 +177,10 @@ export default function ProfilePage({ user: initialUser, onUpdateUser }) {
           {[
             ['Full Name', `${user.firstName || ''} ${user.lastName || ''}`],
             ['Student ID Number', user.schoolId || 'Unavailable'],
-            ['Institutional Email', user.schoolMail || 'Unavailable'],
+            ['School Email', user.schoolMail || 'Unavailable'],
             ['Phone Number', user.phone || 'Unavailable'],
-            ['Gender Designation', user.gender || 'Not specified'],
-            ['Account System Role', user.role || 'Student'],
+            ['Gender', user.gender || 'Not specified'],
+            ['Account Type', user.role || 'Student'],
           ].map(([label, value]) => (
             <article key={label} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-4">
               <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500">{label}</p>
@@ -192,7 +192,7 @@ export default function ProfilePage({ user: initialUser, onUpdateUser }) {
             <div>
               <p className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500">Security Verification Check</p>
               <p className="mt-1.5 text-sm font-bold text-slate-900 dark:text-slate-50">
-                {user.verified ? 'Active Campus Credential Verified Identity' : 'Account Under Verification Review'}
+                {user.verified ? 'Verified' : 'Pending Verification'}
               </p>
             </div>
             <Shield className={user.verified ? 'text-emerald-500' : 'text-amber-500'} size={22} />
