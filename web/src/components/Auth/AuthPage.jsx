@@ -172,9 +172,9 @@ export default function AuthPage({ onSignIn }) {
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500 text-white font-black text-xl tracking-tight shadow-md shadow-amber-500/20">
               RN
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-950">Portal Gateway</h1>
+            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-950">Nexus Portal</h1>
           </div>
-          <p className="text-sm text-slate-500 max-w-sm leading-relaxed">Secure identity gateway for student commerce and services</p>
+          <p className="text-sm text-slate-500 max-w-sm leading-relaxed">Secure Access for the Student Commerce Community.</p>
         </header>
 
         <nav className="grid grid-cols-2 p-1.5 bg-slate-100/80 rounded-2xl border border-slate-200/40">
