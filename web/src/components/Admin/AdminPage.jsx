@@ -643,8 +643,7 @@ export default function AdminPage() {
                   className="w-full mt-2 py-2 text-xs font-bold rounded-xl border border-emerald-600 dark:border-emerald-500 text-white bg-emerald-600 hover:bg-emerald-700 transition flex items-center justify-center gap-1.5"
                 >
                   <Download size={14} />
-                  <span>{downloadingReport ? 'Downloading...
-' : 'Save File to Machine'}</span>
+                  <span>{downloadingReport ? 'Downloading...' : 'Save File to Machine'}</span>
                 </button>
               </div>
             )}
