@@ -313,7 +313,7 @@ export default function SettingsPage({ user, onUpdate }) {
             </div>
           </label>
         </div>
-        <h2 className="text-xl font-black">{user.firstName} {user.lastName}</h2>
+        <h2 className="text-xl font-black text-slate-900 dark:text-white">{user.firstName} {user.lastName}</h2>
         <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold mt-0.5 uppercase tracking-widest">
           {user.role || 'Student'} • {user.verified ? 'Verified' : 'Unverified'}
         </p>
