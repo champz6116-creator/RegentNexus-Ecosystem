@@ -10,7 +10,7 @@ dns.setServers(['8.8.8.8', '8.8.4.4']);
 async function createAdmin() {
   try {
     await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/regentnexus');
-    const hashed = await bcrypt.hash('admin12345', 10); // Default password, change later
+    const hashed = await bcrypt.hash('admin123', 10); // Default password, change later
     const admin = await User.findOneAndUpdate(
       { schoolMail: 'rooney.uwho@regent.edu.gh' },
       {
